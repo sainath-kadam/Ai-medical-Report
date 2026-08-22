@@ -1,0 +1,11 @@
+{
+  "name": "backend-ai",
+  "domain": "backend",
+  "description": "Pluggable AI provider abstraction (imaging interpretation + report generation interfaces) with Anthropic, Gemini, and mock implementations selected via AI_PROVIDER.",
+  "paths": [
+    "server/app/ai/",
+    "server/app/ai/providers/anthropic_provider.py",
+    "server/app/ai/providers/gemini_provider.py",
+    "server/app/ai/providers/mock_provider.py"
+  ]
+}

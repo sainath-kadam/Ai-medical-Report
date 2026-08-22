@@ -1,0 +1,6 @@
+{
+  "name": "frontend-ui-components",
+  "domain": "frontend",
+  "description": "Generic, domain-agnostic UI primitives (Table, Pagination, Select, Tabs, Toast) shared across every feature area.",
+  "paths": ["client/src/components/ui/"]
+}

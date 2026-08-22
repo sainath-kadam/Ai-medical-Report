@@ -1,0 +1,10 @@
+{
+  "name": "backend-intake",
+  "domain": "backend",
+  "description": "Stateless chat-style intake parsing: turns a free-text physician message into structured patient/study fields and reports what's still missing.",
+  "paths": [
+    "server/app/api/intake/",
+    "server/app/services/intake_service.py",
+    "server/app/schemas/intake.py"
+  ]
+}

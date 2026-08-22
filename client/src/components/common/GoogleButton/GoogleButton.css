@@ -1,0 +1,13 @@
+.google-button {
+  display: flex;
+  justify-content: center;
+}
+
+.google-button-hint {
+  text-align: center;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  padding: var(--space-2);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-sm);
+}

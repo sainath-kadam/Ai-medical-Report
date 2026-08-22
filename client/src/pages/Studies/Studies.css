@@ -1,0 +1,85 @@
+.studies-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.studies-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.studies-page__header h1 {
+  font-size: 1.5rem;
+  color: var(--color-text-primary);
+}
+.studies-page__header p {
+  color: var(--color-text-secondary);
+  font-size: 0.92rem;
+  margin-top: var(--space-1);
+}
+
+.studies-page__filters {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.studies-page__filters > * {
+  min-width: 180px;
+}
+
+.studies-page__error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: 0.86rem;
+}
+.studies-page__retry {
+  background: none;
+  border: none;
+  color: var(--color-danger);
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+}
+
+.studies-page__loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-7) 0;
+}
+
+.studies-page__patient-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.studies-page__patient-cell strong {
+  color: var(--color-text-primary);
+}
+.studies-page__patient-cell span {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.studies-page__muted {
+  color: var(--color-text-muted);
+}
+
+.studies-page__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.studies-page__count {
+  font-size: 0.84rem;
+  color: var(--color-text-secondary);
+}

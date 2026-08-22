@@ -1,0 +1,6 @@
+{
+  "name": "frontend-styles",
+  "domain": "frontend",
+  "description": "The global design-token system (colors, spacing, radii, light/dark theme) and base element reset that every component CSS file draws from.",
+  "paths": ["client/src/styles/variables.css", "client/src/styles/base.css"]
+}

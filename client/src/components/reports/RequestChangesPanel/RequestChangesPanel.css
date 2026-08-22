@@ -1,0 +1,24 @@
+.request-changes__title {
+  font-size: 1rem;
+  margin-bottom: var(--space-2);
+  color: var(--color-text-primary);
+}
+
+.request-changes__hint {
+  font-size: 0.85rem;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-4);
+}
+
+.request-changes__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  align-items: stretch;
+}
+
+.request-changes__form textarea {
+  width: 100%;
+  min-height: 160px;
+  resize: vertical;
+}

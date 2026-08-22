@@ -1,0 +1,11 @@
+{
+  "name": "backend-users",
+  "domain": "backend",
+  "description": "Managing an organization's user roster: list, invite, fetch, update role/name/active status, and delete users.",
+  "paths": [
+    "server/app/api/users/",
+    "server/app/services/user_service.py",
+    "server/app/repositories/user_repository.py",
+    "server/app/schemas/user.py"
+  ]
+}

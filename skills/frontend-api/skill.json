@@ -1,0 +1,6 @@
+{
+  "name": "frontend-api",
+  "domain": "frontend",
+  "description": "The axios-based HTTP layer (one *.api.ts module per backend domain, shared axiosInstance with token-refresh) and the wire type definitions in types/index.ts.",
+  "paths": ["client/src/api/", "client/src/types/index.ts"]
+}

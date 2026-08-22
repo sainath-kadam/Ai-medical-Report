@@ -1,0 +1,10 @@
+{
+  "name": "backend-analysis",
+  "domain": "backend",
+  "description": "Triggers and tracks the synchronous, in-request AI-analysis pipeline for a study (imaging interpretation, report drafting, analysis-job status polling).",
+  "paths": [
+    "server/app/api/analysis/",
+    "server/app/services/analysis_service.py",
+    "server/app/repositories/analysis_job_repository.py"
+  ]
+}

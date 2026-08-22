@@ -1,0 +1,11 @@
+{
+  "name": "backend-patients",
+  "domain": "backend",
+  "description": "CRUD for the patients entity (list/create/get/update/delete) plus a nested endpoint listing a patient's studies.",
+  "paths": [
+    "server/app/api/patients/",
+    "server/app/services/patient_service.py",
+    "server/app/repositories/patient_repository.py",
+    "server/app/schemas/patient.py"
+  ]
+}

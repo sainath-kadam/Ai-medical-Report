@@ -1,0 +1,107 @@
+/* ==========================================================================
+   Design tokens — the single source of truth for color, spacing, type, and
+   elevation. Every component CSS file below reads from these variables only;
+   no component should hard-code a hex color or pixel radius directly.
+   ========================================================================== */
+
+:root {
+  /* ---- Brand ---- */
+  --color-primary: #0e7c86;
+  --color-primary-dark: #0b646c;
+  --color-primary-light: #e6f4f5;
+  --color-accent: #2f6fed;
+  --color-accent-light: #eaf1ff;
+
+  /* ---- Surfaces ---- */
+  --color-bg: #f5f7fa;
+  --color-surface: #ffffff;
+  --color-surface-alt: #f0f3f7;
+  --color-border: #e2e8f0;
+  --color-border-strong: #cbd5e1;
+
+  /* ---- Text ---- */
+  --color-text-primary: #101828;
+  --color-text-secondary: #475467;
+  --color-text-muted: #5b6b80;
+  --color-text-on-primary: #ffffff;
+
+  /* ---- Status ---- */
+  --color-success: #16a34a;
+  --color-success-bg: #e9f9ef;
+  --color-warning: #d97706;
+  --color-warning-bg: #fff7e6;
+  --color-danger: #dc2626;
+  --color-danger-bg: #feecec;
+  --color-info: #2f6fed;
+  --color-info-bg: #eaf1ff;
+
+  /* ---- Elevation ---- */
+  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
+  --shadow-md: 0 4px 10px rgba(16, 24, 40, 0.08);
+  --shadow-lg: 0 12px 28px rgba(16, 24, 40, 0.14);
+
+  /* ---- Overlay ---- */
+  /* Backdrop scrim behind Modal/Sidebar drawer -- deliberately the same fixed dark
+     tint in both themes (a dimming scrim, not a themed surface). */
+  --color-overlay: rgba(15, 23, 32, 0.5);
+
+  /* ---- Radius ---- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-pill: 999px;
+
+  /* ---- Spacing scale ---- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+
+  /* ---- Typography ---- */
+  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-document: Georgia, 'Times New Roman', serif;
+
+  /* ---- Layout ---- */
+  --topbar-height: 64px;
+  --sidebar-width: 260px;
+  --content-max-width: 1280px;
+  --transition-base: 180ms ease;
+}
+
+/* Dark theme — toggled via [data-theme="dark"] on <html> (see ThemeContext).
+   Radiology reading rooms are frequently kept dim, so this is a real feature,
+   not decoration: it keeps report text legible without a glaring white panel. */
+[data-theme='dark'] {
+  --color-primary: #2dd4bf;
+  --color-primary-dark: #14b8a6;
+  --color-primary-light: #113b3d;
+  --color-accent: #6d9bff;
+  --color-accent-light: #172440;
+
+  --color-bg: #0f1720;
+  --color-surface: #17212b;
+  --color-surface-alt: #1d2733;
+  --color-border: #2a3644;
+  --color-border-strong: #3a4756;
+
+  --color-text-primary: #f1f5f9;
+  --color-text-secondary: #b7c2cf;
+  --color-text-muted: #7c8896;
+  --color-text-on-primary: #06231f;
+
+  --color-success: #34d399;
+  --color-success-bg: #0f2e22;
+  --color-warning: #fbbf24;
+  --color-warning-bg: #3a2a0c;
+  --color-danger: #f87171;
+  --color-danger-bg: #3a1414;
+  --color-info: #6d9bff;
+  --color-info-bg: #14213f;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 16px 32px rgba(0, 0, 0, 0.55);
+}

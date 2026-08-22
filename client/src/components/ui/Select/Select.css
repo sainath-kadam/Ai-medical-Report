@@ -1,0 +1,58 @@
+.ui-select {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.ui-select__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.ui-select__control {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.ui-select__input {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  padding: 10px 36px 10px 14px;
+  font-size: 0.92rem;
+  color: var(--color-text-primary);
+  cursor: pointer;
+  transition: border-color var(--transition-base), box-shadow var(--transition-base);
+}
+
+.ui-select__input:focus {
+  outline: none;
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px var(--color-primary-light);
+}
+
+.ui-select__chevron {
+  position: absolute;
+  right: 12px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.ui-select--error .ui-select__input {
+  border-color: var(--color-danger);
+}
+
+.ui-select__message {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.ui-select__message--error {
+  color: var(--color-danger);
+}

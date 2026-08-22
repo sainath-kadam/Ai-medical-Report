@@ -1,0 +1,10 @@
+{
+  "name": "backend-auth",
+  "domain": "backend",
+  "description": "Signup, login, Google OAuth, token refresh/logout, password reset, and the JWT/RBAC primitives (get_current_user, require_roles) every other domain depends on.",
+  "paths": [
+    "server/app/api/auth/",
+    "server/app/services/auth_service.py",
+    "server/app/core/security.py"
+  ]
+}

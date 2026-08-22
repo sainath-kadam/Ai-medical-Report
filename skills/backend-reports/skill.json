@@ -1,0 +1,12 @@
+{
+  "name": "backend-reports",
+  "domain": "backend",
+  "description": "Owns report read/list, manual edits, AI change-requests, regeneration, finalization, and PDF rendering/download, always appending immutable versions rather than mutating in place.",
+  "paths": [
+    "server/app/api/reports/",
+    "server/app/services/report_service.py",
+    "server/app/repositories/report_repository.py",
+    "server/app/schemas/report.py",
+    "server/app/services/pdf_service.py"
+  ]
+}

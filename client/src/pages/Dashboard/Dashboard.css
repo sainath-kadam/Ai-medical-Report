@@ -1,0 +1,105 @@
+.dashboard-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+}
+
+.dashboard-page__upload-header {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+}
+
+.dashboard-page__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  background: none;
+  border: none;
+  color: var(--color-text-secondary);
+  font-size: 0.86rem;
+  cursor: pointer;
+  padding: 6px 0;
+}
+.dashboard-page__back:hover {
+  color: var(--color-primary);
+}
+
+.dashboard-page__upload-title {
+  font-size: 1.15rem;
+  color: var(--color-text-primary);
+}
+
+.dashboard-page__error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: 0.86rem;
+}
+
+.dashboard-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+.dashboard-page__header h1 {
+  font-size: 1.5rem;
+  color: var(--color-text-primary);
+}
+
+.dashboard-page__loading {
+  padding: var(--space-7) 0;
+  display: flex;
+  justify-content: center;
+}
+
+.dashboard-page__hero-card {
+  width: 100%;
+  border-color: var(--color-primary);
+  text-align: center;
+}
+.dashboard-page__hero-card .empty-state {
+  padding: var(--space-6) var(--space-4);
+}
+.dashboard-page__hero-card .empty-state__icon {
+  color: var(--color-primary);
+}
+.dashboard-page__hero-card .empty-state__title {
+  font-size: 1.25rem;
+}
+.dashboard-page__hero-card .empty-state__description {
+  max-width: 420px;
+}
+
+.dashboard-page__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--space-4);
+}
+
+.dashboard-page__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-4);
+}
+.dashboard-page__section-header h2 {
+  font-size: 1.05rem;
+  color: var(--color-text-primary);
+}
+
+.dashboard-page__report-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--space-3);
+}
+
+@media (max-width: 640px) {
+  .dashboard-page__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

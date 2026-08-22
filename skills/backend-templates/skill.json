@@ -1,0 +1,11 @@
+{
+  "name": "backend-templates",
+  "domain": "backend",
+  "description": "Owns organization report-template branding and section layout: CRUD, logo upload, and live (unsaved-draft) PDF preview.",
+  "paths": [
+    "server/app/api/templates/",
+    "server/app/services/template_service.py",
+    "server/app/repositories/template_repository.py",
+    "server/app/schemas/template.py"
+  ]
+}

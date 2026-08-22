@@ -1,0 +1,14 @@
+{
+  "name": "frontend-components",
+  "domain": "frontend",
+  "description": "Pre-existing generic building blocks (components/common) plus every feature-specific component folder (layout, patients, studies, reports, templates, upload) that compose them into product UI.",
+  "paths": [
+    "client/src/components/common/",
+    "client/src/components/layout/",
+    "client/src/components/patients/",
+    "client/src/components/reports/",
+    "client/src/components/studies/",
+    "client/src/components/templates/",
+    "client/src/components/upload/"
+  ]
+}

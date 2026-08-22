@@ -1,0 +1,9 @@
+{
+  "name": "backend-uploads",
+  "domain": "backend",
+  "description": "Validates and stores a file attached to a study, and serves uploaded files back out through a signed, time-limited URL.",
+  "paths": [
+    "server/app/api/uploads/",
+    "server/app/services/upload_service.py"
+  ]
+}

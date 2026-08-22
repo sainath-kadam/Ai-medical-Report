@@ -1,0 +1,6 @@
+{
+  "name": "backend-storage",
+  "domain": "backend",
+  "description": "Pluggable signed-URL file storage abstraction (local disk, S3/S3-compatible, Firebase) selected at runtime via STORAGE_PROVIDER.",
+  "paths": ["server/app/storage/"]
+}

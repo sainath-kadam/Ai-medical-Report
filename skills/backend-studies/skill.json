@@ -1,0 +1,11 @@
+{
+  "name": "backend-studies",
+  "domain": "backend",
+  "description": "CRUD for the studies entity (imaging studies belonging to a patient), plus the combined patient+study+upload+analysis intake flow.",
+  "paths": [
+    "server/app/api/studies/",
+    "server/app/services/study_service.py",
+    "server/app/repositories/study_repository.py",
+    "server/app/schemas/study.py"
+  ]
+}

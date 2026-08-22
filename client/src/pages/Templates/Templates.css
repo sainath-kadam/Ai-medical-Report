@@ -1,0 +1,92 @@
+.templates-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.templates-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.templates-page__header h1 {
+  font-size: 1.5rem;
+  color: var(--color-text-primary);
+}
+.templates-page__header p {
+  color: var(--color-text-secondary);
+  font-size: 0.92rem;
+  margin-top: var(--space-1);
+}
+
+.templates-page__error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: 0.86rem;
+}
+
+.templates-page__loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-7) 0;
+}
+
+.templates-page__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-3);
+}
+
+.template-card {
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.template-card__accent {
+  height: 6px;
+}
+
+.template-card__body {
+  padding: var(--space-4);
+}
+
+.template-card__top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+.template-card__top h3 {
+  font-size: 1rem;
+  color: var(--color-text-primary);
+}
+
+.template-card__default-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  white-space: nowrap;
+}
+
+.template-card__meta {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-3);
+}
+
+.template-card__actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}

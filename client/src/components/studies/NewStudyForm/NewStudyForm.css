@@ -1,0 +1,222 @@
+.study-intake-form__grid {
+  display: grid;
+  /* minmax(0, ...), not a bare fr: without it, an unbreakable long filename (FileDropzone's
+     nowrap-truncated <strong>) forces this track to grow to its min-content width instead
+     of the intended 2:1 ratio -- the ellipsis truncation further down never gets a chance
+     to kick in because the column itself already grew to fit. */
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+.study-intake-form__main,
+.study-intake-form__sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.study-intake-form__section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+.study-intake-form__section-header h3 {
+  font-size: 1rem;
+  color: var(--color-text-primary);
+}
+
+.study-intake-form__section-title {
+  font-size: 1rem;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-3);
+}
+
+.study-intake-form__mode-toggle {
+  display: inline-flex;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+}
+.study-intake-form__mode-toggle button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--color-surface);
+  border: none;
+  padding: 6px 12px;
+  font-size: 0.8rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+}
+.study-intake-form__mode-toggle button + button {
+  border-left: 1px solid var(--color-border);
+}
+.study-intake-form__mode-toggle button.is-active {
+  background: var(--color-primary);
+  color: var(--color-primary-contrast, #fff);
+}
+
+.study-intake-form__row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.study-intake-form__new-patient {
+  display: flex;
+  flex-direction: column;
+}
+
+.study-intake-form__patient-picker {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.study-intake-form__patient-results {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 200px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 6px;
+  background: var(--color-surface-alt);
+}
+
+.study-intake-form__patient-results-loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-3) 0;
+}
+
+.study-intake-form__patient-empty {
+  font-size: 0.84rem;
+  color: var(--color-text-muted);
+  padding: var(--space-2);
+  text-align: center;
+}
+
+.study-intake-form__patient-result {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.86rem;
+  color: var(--color-text-primary);
+  transition: border-color var(--transition-base), background-color var(--transition-base);
+}
+.study-intake-form__patient-result:hover {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+.study-intake-form__patient-result span {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.study-intake-form__patient-selected {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+}
+.study-intake-form__patient-selected strong {
+  display: block;
+  color: var(--color-text-primary);
+  font-size: 0.9rem;
+}
+.study-intake-form__patient-selected span {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.study-intake-form__hint {
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-3);
+}
+
+.study-intake-form__error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: 0.86rem;
+  margin-bottom: var(--space-3);
+}
+
+.study-intake-form__link-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--color-primary);
+  font-size: 0.82rem;
+  cursor: pointer;
+  text-align: left;
+}
+.study-intake-form__link-btn:hover {
+  text-decoration: underline;
+}
+
+.study-intake-form__inline-fact {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 0.86rem;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-3);
+}
+.study-intake-form__inline-fact strong {
+  color: var(--color-text-primary);
+}
+.study-intake-form__inline-fact .study-intake-form__link-btn {
+  font-size: 0.78rem;
+}
+
+.study-intake-form__template-preview-label {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2);
+}
+.study-intake-form__toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: 0.88rem;
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+  cursor: pointer;
+}
+.study-intake-form__toggle input {
+  margin-top: 3px;
+}
+
+@media (max-width: 900px) {
+  .study-intake-form__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .study-intake-form__row {
+    grid-template-columns: 1fr;
+  }
+}

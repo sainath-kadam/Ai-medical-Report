@@ -1,0 +1,10 @@
+{
+  "name": "backend-audit-logs",
+  "domain": "backend",
+  "description": "The audit trail every mutating service call writes to, plus the org_admin-only filtered/paginated listing route.",
+  "paths": [
+    "server/app/api/audit_logs/",
+    "server/app/services/audit_service.py",
+    "server/app/repositories/audit_log_repository.py"
+  ]
+}

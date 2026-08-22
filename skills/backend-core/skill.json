@@ -1,0 +1,9 @@
+{
+  "name": "backend-core",
+  "domain": "backend",
+  "description": "Cross-cutting infrastructure: environment config, the AppError/exception-handler contract, logging setup, the trial/subscription gate, and request middleware (rate limiting, request-id/IP capture).",
+  "paths": [
+    "server/app/core/",
+    "server/app/middleware/"
+  ]
+}

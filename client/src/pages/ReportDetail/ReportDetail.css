@@ -1,0 +1,5 @@
+.report-detail__loading {
+  padding: var(--space-7) 0;
+  display: flex;
+  justify-content: center;
+}

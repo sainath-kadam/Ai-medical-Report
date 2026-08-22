@@ -1,0 +1,112 @@
+.patients-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.patients-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.patients-page__header h1 {
+  font-size: 1.5rem;
+  color: var(--color-text-primary);
+}
+.patients-page__header p {
+  color: var(--color-text-secondary);
+  font-size: 0.92rem;
+  margin-top: var(--space-1);
+}
+
+.patients-page__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.patients-page__toolbar .field {
+  width: 100%;
+  max-width: 320px;
+}
+
+.patients-page__count {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.patients-page__error,
+.patients-page__form-error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: 0.86rem;
+}
+.patients-page__form-error {
+  margin-bottom: var(--space-4);
+}
+
+.patients-page__loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-7) 0;
+}
+
+.patients-page__mrn {
+  font-weight: 600;
+  color: var(--color-text-primary);
+}
+
+.patients-page__row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.patients-page__icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: background-color var(--transition-base), color var(--transition-base), border-color var(--transition-base);
+}
+.patients-page__icon-btn:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text-primary);
+}
+.patients-page__icon-btn--danger:hover {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  border-color: var(--color-danger-bg);
+}
+
+.patients-page__pagination {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--space-2);
+}
+
+@media (max-width: 640px) {
+  .patients-page__header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .patients-page__toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .patients-page__toolbar .field {
+    max-width: none;
+  }
+}

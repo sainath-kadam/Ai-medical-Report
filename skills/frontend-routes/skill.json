@@ -1,0 +1,6 @@
+{
+  "name": "frontend-routes",
+  "domain": "frontend",
+  "description": "The client-side route table and the auth/role guard components (ProtectedRoute, RoleRoute) every protected route is wrapped in.",
+  "paths": ["client/src/routes/"]
+}

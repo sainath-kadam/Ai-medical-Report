@@ -1,0 +1,11 @@
+{
+  "name": "backend-organizations",
+  "domain": "backend",
+  "description": "Reading and updating the current user's own organization record (the tenant boundary itself, not a tenant-scoped resource).",
+  "paths": [
+    "server/app/api/organizations/",
+    "server/app/services/organization_service.py",
+    "server/app/repositories/organization_repository.py",
+    "server/app/schemas/organization.py"
+  ]
+}

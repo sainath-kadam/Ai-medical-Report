@@ -1,0 +1,10 @@
+{
+  "name": "backend-platform",
+  "domain": "backend",
+  "description": "The system_admin role and cross-organization platform operations: bootstrapping the first system_admin, inviting more, and onboarding new organizations.",
+  "paths": [
+    "server/app/api/platform/",
+    "server/app/services/platform_service.py",
+    "server/app/scripts/create_system_admin.py"
+  ]
+}

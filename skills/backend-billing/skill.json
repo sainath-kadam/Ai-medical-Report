@@ -1,0 +1,10 @@
+{
+  "name": "backend-billing",
+  "domain": "backend",
+  "description": "Trial/subscription gating for AI report generation and the Stripe checkout + webhook flow that activates or expires an organization's paid subscription.",
+  "paths": [
+    "server/app/api/billing/",
+    "server/app/services/billing_service.py",
+    "server/app/core/subscription.py"
+  ]
+}

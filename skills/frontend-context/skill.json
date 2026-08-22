@@ -1,0 +1,6 @@
+{
+  "name": "frontend-context",
+  "domain": "frontend",
+  "description": "React context providers for auth/session and light-dark theme, plus the app's shared standalone hooks (click-outside, job polling, debounced PDF preview, scroll reveal).",
+  "paths": ["client/src/context/", "client/src/hooks/"]
+}

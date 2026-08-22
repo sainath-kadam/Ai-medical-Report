@@ -1,0 +1,9 @@
+{
+  "name": "backend-dashboard",
+  "domain": "backend",
+  "description": "Read-only, org-scoped dashboard rollups: headline stats and a recent-activity feed over studies, reports, analysis jobs, and audit logs.",
+  "paths": [
+    "server/app/api/dashboard/",
+    "server/app/services/dashboard_service.py"
+  ]
+}

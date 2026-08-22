@@ -1,0 +1,11 @@
+.patient-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.patient-form__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: var(--space-3);
+}

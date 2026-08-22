@@ -1,0 +1,6 @@
+{
+  "name": "frontend-pages",
+  "domain": "frontend",
+  "description": "The top-level route screens (one folder per route) that fetch data via the api modules and render the shared loading/error/empty/content pattern.",
+  "paths": ["client/src/pages/"]
+}

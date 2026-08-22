@@ -1,0 +1,99 @@
+.audit-logs-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.audit-logs-page__header h1 {
+  font-size: 1.5rem;
+  color: var(--color-text-primary);
+}
+.audit-logs-page__header p {
+  color: var(--color-text-secondary);
+  font-size: 0.92rem;
+  margin-top: var(--space-1);
+}
+
+.audit-logs-page__filters {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.audit-logs-page__filters .field {
+  min-width: 220px;
+  flex: 1 1 220px;
+}
+.audit-logs-page__filters .btn {
+  flex-shrink: 0;
+}
+
+.audit-logs-page__loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-7) 0;
+}
+
+.audit-logs-page__error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-sm);
+  font-size: 0.86rem;
+}
+
+.audit-logs-page__timestamp {
+  color: var(--color-text-secondary);
+  font-size: 0.86rem;
+  white-space: nowrap;
+}
+
+.audit-logs-page__id {
+  display: inline-block;
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: bottom;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+  cursor: help;
+}
+
+.audit-logs-page__resource {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.audit-logs-page__resource-type {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  text-transform: capitalize;
+}
+
+.audit-logs-page__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.audit-logs-page__count {
+  font-size: 0.84rem;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 640px) {
+  .audit-logs-page__filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .audit-logs-page__filters .field {
+    min-width: 0;
+  }
+}

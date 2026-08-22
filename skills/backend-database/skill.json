@@ -1,0 +1,6 @@
+{
+  "name": "backend-database",
+  "domain": "backend",
+  "description": "SQLAlchemy async engine/session lifecycle and the SQLAlchemy table models every repository maps to, plus the camelCase<->snake_case casing conversion layer.",
+  "paths": ["server/app/database/"]
+}

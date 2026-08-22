@@ -1,0 +1,10 @@
+{
+  "name": "backend-notifications",
+  "domain": "backend",
+  "description": "In-app, user-scoped notifications: create (in-app only, no email/SMS yet), list, mark-read, and mark-all-read.",
+  "paths": [
+    "server/app/api/notifications/",
+    "server/app/services/notification_service.py",
+    "server/app/repositories/notification_repository.py"
+  ]
+}

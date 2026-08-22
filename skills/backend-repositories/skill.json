@@ -1,0 +1,6 @@
+{
+  "name": "backend-repositories",
+  "domain": "backend",
+  "description": "The persistence layer between services and the database: BaseRepository's shared CRUD/dict-shape/org-scoping convention plus one repository subclass per table.",
+  "paths": ["server/app/repositories/"]
+}
