@@ -2,9 +2,9 @@ import { FormEvent, useEffect, useState } from 'react';
 import { FiUserPlus } from 'react-icons/fi';
 import { patientApi } from '../../../api/patient.api';
 import { studyApi } from '../../../api/study.api';
-import { templateApi } from '../../../api/template.api';
 import { apiErrorMessage } from '../../../api/axiosInstance';
-import { Modality, Patient, ReportTemplate, Sex, StudyIntakeResult } from '../../../types';
+import { useTemplatesList } from '../../../hooks/queries/useTemplates';
+import { Modality, Patient, Sex, StudyIntakeResult } from '../../../types';
 import { MODALITY_OPTIONS } from '../../../utils/studyMeta';
 import Card from '../../common/Card/Card';
 import Button from '../../common/Button/Button';
@@ -60,7 +60,10 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
   // "Change" link rather than an editable field everyone has to look past.
   const [isEditingDate, setIsEditingDate] = useState(false);
 
-  const [templates, setTemplates] = useState<ReportTemplate[]>([]);
+  // Same cached query the Templates settings page reads (hooks/queries/useTemplates.ts)
+  // -- opening this form after visiting Templates (or another study's upload) usually
+  // costs zero network requests.
+  const { data: templates = [] } = useTemplatesList();
   const [templateId, setTemplateId] = useState<string | undefined>(undefined);
   const selectedTemplate = templates.find((t) => t.id === templateId);
   const [file, setFile] = useState<File | null>(null);
@@ -69,15 +72,13 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Auto-pick the org's default template once the (cached) list arrives -- only while
+  // nothing is selected yet, so a background revalidation of the list never overrides a
+  // choice the doctor already made in this form.
   useEffect(() => {
-    templateApi
-      .list()
-      .then((items) => {
-        setTemplates(items);
-        setTemplateId(items.find((t) => t.isDefault)?.id ?? items[0]?.id);
-      })
-      .catch(() => setTemplates([]));
-  }, []);
+    if (templateId || templates.length === 0) return;
+    setTemplateId(templates.find((t) => t.isDefault)?.id ?? templates[0]?.id);
+  }, [templates, templateId]);
 
   useEffect(() => {
     if (!initialPatientId) return;

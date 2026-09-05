@@ -1,7 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { FiAlertTriangle, FiCheckCircle, FiClock, FiCreditCard, FiLock, FiShield } from 'react-icons/fi';
-import { billingApi, BillingStatus } from '../../api/billing.api';
+import { billingApi } from '../../api/billing.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
+import { useBillingStatus } from '../../hooks/queries/useBilling';
+import { BillingStatus } from '../../api/billing.api';
 import Card from '../../components/common/Card/Card';
 import Button from '../../components/common/Button/Button';
 import Loader from '../../components/common/Loader/Loader';
@@ -22,27 +24,21 @@ function daysRemaining(trialEndsAt: string | null): number | null {
 }
 
 export default function Billing() {
-  const [status, setStatus] = useState<BillingStatus | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  // Short-lived cache (see hooks/queries/useBilling.ts) -- fresh enough to still reflect
+  // a platform admin's access grant or a just-completed Stripe checkout without a hard
+  // refresh, while a plain revisit within that window costs no network request.
+  const { data: status, isLoading, isError, error } = useBillingStatus();
   const [isCheckingOut, setIsCheckingOut] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    billingApi
-      .status()
-      .then(setStatus)
-      .catch((err) => setError(apiErrorMessage(err)))
-      .finally(() => setIsLoading(false));
-  }, []);
+  const [checkoutError, setCheckoutError] = useState('');
 
   async function handleSubscribe() {
     setIsCheckingOut(true);
-    setError('');
+    setCheckoutError('');
     try {
       const { checkoutUrl } = await billingApi.checkout();
       window.location.href = checkoutUrl;
     } catch (err) {
-      setError(apiErrorMessage(err));
+      setCheckoutError(apiErrorMessage(err));
       setIsCheckingOut(false);
     }
   }
@@ -55,6 +51,8 @@ export default function Billing() {
     );
   }
 
+  const error_ = checkoutError || (isError ? apiErrorMessage(error) : '');
+
   return (
     <div className="billing-page">
       <div className="billing-page__header">
@@ -62,7 +60,7 @@ export default function Billing() {
         <p>Your organization's subscription, trial and access status.</p>
       </div>
 
-      {error && <div className="billing-page__error">{error}</div>}
+      {error_ && <div className="billing-page__error">{error_}</div>}
 
       {status && (
         <Card className="billing-page__status-card">

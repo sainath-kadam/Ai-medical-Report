@@ -34,14 +34,10 @@
 .auth-card__brand-mark {
   width: 34px;
   height: 34px;
+  min-width: 34px;
   border-radius: var(--radius-sm);
-  background: var(--color-primary);
-  color: var(--color-text-on-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: var(--font-size-sm);
+  object-fit: cover;
+  box-shadow: 0 3px 10px -2px color-mix(in srgb, var(--color-primary) 45%, transparent);
 }
 
 .auth-card__title {

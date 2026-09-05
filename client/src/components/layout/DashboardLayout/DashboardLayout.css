@@ -2,6 +2,15 @@
   min-height: 100vh;
   display: flex;
   flex-direction: column;
+  /* A very quiet ambient wash behind every authenticated page -- fixed (not scrolled
+     with content) so it reads as the app's own canvas rather than decoration tied to
+     any one page's length. Subtle by design: this is a data-dense app shell, not a
+     marketing page, so it should recede completely behind real content. */
+  background:
+    radial-gradient(900px circle at 12% 0%, color-mix(in srgb, var(--color-primary) 5%, transparent), transparent 55%),
+    radial-gradient(700px circle at 100% 0%, color-mix(in srgb, var(--color-accent) 4%, transparent), transparent 50%),
+    var(--color-bg);
+  background-attachment: fixed;
 }
 
 .dashboard-layout__content {
@@ -15,6 +24,24 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
+  animation: dashboard-inner-rise 380ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes dashboard-inner-rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-layout__inner {
+    animation: none;
+  }
 }
 
 @media (max-width: 640px) {

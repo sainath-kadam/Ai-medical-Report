@@ -46,9 +46,9 @@ export default function Login() {
       <ThemeToggle variant="fixed" />
       <div className="auth-card">
         <div className="auth-card__brand">
-          <span className="auth-card__brand-mark">MS</span>
+          <img src="/LogoMedicalAI2.jpg" alt="" className="auth-card__brand-mark" />
           <span>
-            MedScan <strong>AI</strong>
+            Medo <strong>AI</strong>
           </span>
         </div>
         <h1 className="auth-card__title">Welcome back</h1>

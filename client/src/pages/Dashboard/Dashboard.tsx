@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   FiActivity,
   FiAlertTriangle,
@@ -12,11 +13,12 @@ import {
   FiTrendingUp,
   FiUploadCloud,
 } from 'react-icons/fi';
-import { dashboardApi } from '../../api/dashboard.api';
 import { reportApi } from '../../api/report.api';
 import { studyApi } from '../../api/study.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
-import { DashboardStats, GeneratedReportContent, Report, Study, StudyIntakeResult } from '../../types';
+import { useDashboardRecentReports, useDashboardStats } from '../../hooks/queries/useDashboard';
+import { queryKeys } from '../../lib/queryKeys';
+import { GeneratedReportContent, Report, Study, StudyIntakeResult } from '../../types';
 import StatCard from '../../components/common/StatCard/StatCard';
 import Card from '../../components/common/Card/Card';
 import Button from '../../components/common/Button/Button';
@@ -32,11 +34,29 @@ import './Dashboard.css';
 export default function Dashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [searchParams, setSearchParams] = useSearchParams();
-  const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [recentReports, setRecentReports] = useState<Report[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+
+  // Both cached (see hooks/queries/useDashboard.ts) -- returning to the Dashboard from
+  // another page within the freshness window shows the same stats/reports instantly
+  // instead of a loading flash, then silently refreshes if they've actually changed.
+  const statsQuery = useDashboardStats();
+  const reportsQuery = useDashboardRecentReports();
+  const stats = statsQuery.data;
+  const recentReports = reportsQuery.data?.items ?? [];
+  const isLoading = statsQuery.isLoading || reportsQuery.isLoading;
+  const error = statsQuery.isError ? apiErrorMessage(statsQuery.error) : reportsQuery.isError ? apiErrorMessage(reportsQuery.error) : '';
+
+  function invalidateDashboard() {
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+  }
+  // Anything that changes a report's content/status also needs the reports list and any
+  // cached study to catch up, not just this page's own dashboard queries.
+  function invalidateReportRelated() {
+    invalidateDashboard();
+    queryClient.invalidateQueries({ queryKey: queryKeys.reports.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.studies.all });
+  }
 
   // Starting a study is an inline mode, not a separate route, so the rest of the
   // dashboard hides while it's active. `startUpload`/`patientId` let PatientDetail's
@@ -76,22 +96,6 @@ export default function Dashboard() {
     }
   }
 
-  function loadDashboardData() {
-    setIsLoading(true);
-    Promise.all([dashboardApi.stats(), reportApi.list({ page: 1, pageSize: 6 })])
-      .then(([statsData, reports]) => {
-        setStats(statsData);
-        setRecentReports(reports.items);
-      })
-      .catch((err) => setError(apiErrorMessage(err)))
-      .finally(() => setIsLoading(false));
-  }
-
-  useEffect(() => {
-    loadDashboardData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   // Locates the report that belongs to `study` the same indirect way StudyDetail does
   // (there is no GET /studies/{id}/report yet -- CONTRACTS.md §9). Returns false if none.
   async function openReportForStudy(study: Study): Promise<boolean> {
@@ -108,6 +112,8 @@ export default function Dashboard() {
 
   async function handleIntakeComplete(result: StudyIntakeResult) {
     closeUpload();
+    invalidateReportRelated(); // a new study/report now exists, whatever else happened below
+    queryClient.invalidateQueries({ queryKey: queryKeys.patients.all });
     if (result.report) {
       setReviewReport(result.report);
       setReviewStudyId(result.study.id);
@@ -139,6 +145,7 @@ export default function Dashboard() {
       // Runs inline server-side and resolves once the analysis has finished (or failed).
       const { jobId } = await studyApi.runAnalysis(study.id);
       const found = await openReportForStudy(study);
+      invalidateReportRelated();
       if (!found) {
         const job = await studyApi.getJob(jobId);
         setIntakeFailure({ study, message: job.error || 'The AI analysis did not complete.' });
@@ -152,7 +159,7 @@ export default function Dashboard() {
 
   function dismissFailure() {
     setIntakeFailure(null);
-    loadDashboardData();
+    invalidateDashboard();
   }
 
   async function handleReviewSaveEdit(content: GeneratedReportContent) {
@@ -163,6 +170,7 @@ export default function Dashboard() {
       const updated = await reportApi.update(reviewReport.id, content);
       setReviewReport(updated);
       setReviewSelectedVersion(updated.currentVersion);
+      invalidateReportRelated();
     } catch (err) {
       setReviewError(apiErrorMessage(err));
       throw err; // re-thrown so ReportViewer knows the save failed and stays in edit mode
@@ -183,6 +191,7 @@ export default function Dashboard() {
       const updated = await reportApi.getById(reviewReport.id);
       setReviewReport(updated);
       setReviewSelectedVersion(updated.currentVersion);
+      invalidateReportRelated();
     } catch (err) {
       setReviewError(apiErrorMessage(err));
     } finally {
@@ -198,6 +207,7 @@ export default function Dashboard() {
       const updated = await reportApi.regenerate(reviewReport.id);
       setReviewReport(updated);
       setReviewSelectedVersion(updated.currentVersion);
+      invalidateReportRelated();
     } catch (err) {
       setReviewError(apiErrorMessage(err));
     } finally {
@@ -211,6 +221,7 @@ export default function Dashboard() {
     setIsFinalizingReview(true);
     try {
       await reportApi.finalize(reviewReport.id);
+      invalidateReportRelated();
       // Finalizing is the one action that leaves the inline review screen -- the doctor's
       // done here, so hand off to the study's own Report tab (the "report page").
       navigate(`/studies/${reviewStudyId}?tab=report`);
@@ -246,7 +257,7 @@ export default function Dashboard() {
     setReviewReport(null);
     setReviewStudyId(null);
     setReviewError('');
-    loadDashboardData();
+    invalidateDashboard();
   }
 
   if (isUploading) {

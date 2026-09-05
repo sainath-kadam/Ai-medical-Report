@@ -1,8 +1,11 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { FiArrowLeft, FiCalendar, FiLock, FiUnlock, FiUsers } from 'react-icons/fi';
-import { platformApi, PlatformOrganization } from '../../api/platform.api';
+import { platformApi } from '../../api/platform.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
+import { usePlatformOrganization } from '../../hooks/queries/usePlatform';
+import { queryKeys } from '../../lib/queryKeys';
 import { Organization, User } from '../../types';
 import Card from '../../components/common/Card/Card';
 import Button from '../../components/common/Button/Button';
@@ -41,37 +44,45 @@ function addDays(fromIso: string | null | undefined, days: number): string {
 
 /** system_admin-only (CONTRACTS.md §2c): one organization's access controls — grant or clear a
  * manual access period, suspend/restore, annotate — plus its members. Every change here is
- * audit-logged against the organization as ORGANIZATION_ACCESS_UPDATED. */
+ * audit-logged against the organization as ORGANIZATION_ACCESS_UPDATED. Cached (see
+ * hooks/queries/usePlatform.ts) -- coming back from the Organizations list reads straight
+ * from cache while still fresh. */
 export default function OrganizationDetail() {
   const { id } = useParams<{ id: string }>();
-  const [org, setOrg] = useState<PlatformOrganization | null>(null);
-  const [members, setMembers] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
+  const queryClient = useQueryClient();
+  const { data, isLoading, isError, error: loadErrorObj } = usePlatformOrganization(id);
+  const org = data?.organization ?? null;
+  const members = data?.users ?? [];
 
+  // A local draft the form edits field-by-field -- re-seeded from the fetched org, but
+  // never while a save is in flight or the org_admin has just made an unsaved edit, so a
+  // background revalidation can't clobber typing in progress.
   const [form, setForm] = useState({ accessEndsAt: '', accessNote: '', plan: 'free' as Organization['plan'] });
+  const [isFormDirty, setIsFormDirty] = useState(false);
+  useEffect(() => {
+    if (org && !isFormDirty) {
+      setForm({ accessEndsAt: toDateInput(org.accessEndsAt), accessNote: org.accessNote || '', plan: org.plan });
+    }
+  }, [org, isFormDirty]);
+
   const [isSaving, setIsSaving] = useState(false);
   const [isTogglingSuspend, setIsTogglingSuspend] = useState(false);
   const [actionError, setActionError] = useState('');
   const [success, setSuccess] = useState('');
 
-  const applyOrg = useCallback((next: PlatformOrganization) => {
-    setOrg(next);
-    setForm({ accessEndsAt: toDateInput(next.accessEndsAt), accessNote: next.accessNote || '', plan: next.plan });
-  }, []);
+  function applyUpdatedOrg(updated: typeof org) {
+    if (!id || !updated) return;
+    queryClient.setQueryData(queryKeys.platform.organization(id), (prev: typeof data) =>
+      prev ? { ...prev, organization: updated } : prev
+    );
+    queryClient.invalidateQueries({ queryKey: queryKeys.platform.all });
+    setIsFormDirty(false);
+  }
 
-  useEffect(() => {
-    if (!id) return;
-    setIsLoading(true);
-    platformApi
-      .getOrganization(id)
-      .then((data) => {
-        applyOrg(data.organization);
-        setMembers(data.users);
-      })
-      .catch((err) => setLoadError(apiErrorMessage(err)))
-      .finally(() => setIsLoading(false));
-  }, [id, applyOrg]);
+  function updateForm(patch: Partial<typeof form>) {
+    setForm((prev) => ({ ...prev, ...patch }));
+    setIsFormDirty(true);
+  }
 
   async function handleSave(event: FormEvent) {
     event.preventDefault();
@@ -85,7 +96,7 @@ export default function OrganizationDetail() {
         accessNote: form.accessNote.trim() || null,
         plan: form.plan,
       });
-      applyOrg(updated);
+      applyUpdatedOrg(updated);
       setSuccess(
         updated.accessEndsAt
           ? `Access granted until ${formatDate(updated.accessEndsAt)}.`
@@ -109,7 +120,7 @@ export default function OrganizationDetail() {
     setIsTogglingSuspend(true);
     try {
       const updated = await platformApi.updateAccess(id, { isSuspended: suspend });
-      applyOrg(updated);
+      applyUpdatedOrg(updated);
       setSuccess(suspend ? 'Organization suspended — it is now read-only.' : 'Suspension lifted.');
     } catch (err) {
       setActionError(apiErrorMessage(err));
@@ -125,13 +136,13 @@ export default function OrganizationDetail() {
       </div>
     );
   }
-  if (loadError || !org) {
+  if (isError || !org) {
     return (
       <div className="platform-page">
         <Link to="/platform/organizations" className="platform-page__back">
           <FiArrowLeft size={14} /> All organizations
         </Link>
-        <div className="platform-page__error">{loadError || 'Organization not found.'}</div>
+        <div className="platform-page__error">{isError ? apiErrorMessage(loadErrorObj) : 'Organization not found.'}</div>
       </div>
     );
   }
@@ -206,7 +217,7 @@ export default function OrganizationDetail() {
               label="Access granted until"
               type="date"
               value={form.accessEndsAt}
-              onChange={(e) => setForm((p) => ({ ...p, accessEndsAt: e.target.value }))}
+              onChange={(e) => updateForm({ accessEndsAt: e.target.value })}
               hint="The organization can create and edit until the end of this day (UTC), regardless of trial or subscription. Leave empty for no manual period."
             />
             <div className="platform-page__quick-row">
@@ -216,13 +227,13 @@ export default function OrganizationDetail() {
                   type="button"
                   size="sm"
                   variant="outline"
-                  onClick={() => setForm((p) => ({ ...p, accessEndsAt: addDays(p.accessEndsAt ? toEndOfDayIso(p.accessEndsAt) : null, days) }))}
+                  onClick={() => updateForm({ accessEndsAt: addDays(form.accessEndsAt ? toEndOfDayIso(form.accessEndsAt) : null, days) })}
                 >
                   +{days === 365 ? '1 year' : `${days} days`}
                 </Button>
               ))}
               {form.accessEndsAt && (
-                <Button type="button" size="sm" variant="ghost" onClick={() => setForm((p) => ({ ...p, accessEndsAt: '' }))}>
+                <Button type="button" size="sm" variant="ghost" onClick={() => updateForm({ accessEndsAt: '' })}>
                   Clear date
                 </Button>
               )}
@@ -231,13 +242,13 @@ export default function OrganizationDetail() {
               label="Plan"
               options={PLAN_OPTIONS}
               value={form.plan}
-              onChange={(e) => setForm((p) => ({ ...p, plan: e.target.value as Organization['plan'] }))}
+              onChange={(e) => updateForm({ plan: e.target.value as Organization['plan'] })}
             />
             <TextArea
               label="Internal note"
               placeholder="e.g. Paid by bank transfer, invoice #1042, 12 months"
               value={form.accessNote}
-              onChange={(e) => setForm((p) => ({ ...p, accessNote: e.target.value }))}
+              onChange={(e) => updateForm({ accessNote: e.target.value })}
               rows={3}
               hint="Visible to platform admins only — never to the organization."
             />

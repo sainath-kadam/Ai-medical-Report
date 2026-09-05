@@ -1,12 +1,18 @@
-import { FiCheckCircle, FiCpu, FiDownload, FiRefreshCw, FiUnlock } from 'react-icons/fi';
+import { useState } from 'react';
+import { FiCheckCircle, FiChevronDown, FiChevronUp, FiCpu, FiDownload, FiRefreshCw, FiUnlock } from 'react-icons/fi';
 import { AnalysisJob, GeneratedReportContent, Report } from '../../../types';
-import { ANALYSIS_JOB_STAGES, ANALYSIS_JOB_STATUS_META } from '../../../utils/studyMeta';
+import { ANALYSIS_JOB_STAGES, ANALYSIS_JOB_STATUS_META, MODALITY_LABELS } from '../../../utils/studyMeta';
+import { getReferenceSources } from '../../../utils/referenceSources';
 import Card from '../../common/Card/Card';
 import Button from '../../common/Button/Button';
 import Loader from '../../common/Loader/Loader';
 import ReportViewer from '../ReportViewer/ReportViewer';
 import RequestChangesPanel from '../RequestChangesPanel/RequestChangesPanel';
 import './ReportWorkspace.css';
+
+// Always show this many reference sources up front; the rest are one click away in a
+// scrollable "show more" list instead of pushing the whole sidebar taller.
+const VISIBLE_SOURCE_COUNT = 3;
 
 interface RunAnalysisSlot {
   label: string;
@@ -82,6 +88,11 @@ export default function ReportWorkspace({
   const isFinalized = report.status === 'finalized';
   const editable = canManage && !isFinalized && !isBusy;
   const canRequestChanges = canManage && !isFinalized;
+
+  const [showAllSources, setShowAllSources] = useState(false);
+  const referenceSources = getReferenceSources(report.study?.modality, report.study?.bodyPart);
+  const visibleSources = referenceSources.slice(0, VISIBLE_SOURCE_COUNT);
+  const extraSources = referenceSources.slice(VISIBLE_SOURCE_COUNT);
 
   return (
     <div className="report-workspace">
@@ -184,24 +195,42 @@ export default function ReportWorkspace({
 
         <Card className="report-workspace__references">
           <h3 className="report-workspace__card-title">Reference sources</h3>
-          <p className="report-workspace__hint">Clinical resources for reviewing the report:</p>
+          <p className="report-workspace__hint">
+            Curated clinical resources for this
+            {report.study ? ` ${report.study.bodyPart} ${MODALITY_LABELS[report.study.modality]}` : ''} study
+            {extraSources.length > 0 && !showAllSources ? ` (${referenceSources.length} total):` : ':'}
+          </p>
           <ul className="report-workspace__reference-list">
-            <li>
-              <a href="https://www.radiologyinfo.org/" target="_blank" rel="noreferrer">
-                RadiologyInfo.org
-              </a>
-            </li>
-            <li>
-              <a href="https://www.acr.org/Clinical-Resources/ACR-Appropriateness-Criteria" target="_blank" rel="noreferrer">
-                ACR Appropriateness Criteria
-              </a>
-            </li>
-            <li>
-              <a href="https://www.rsna.org/" target="_blank" rel="noreferrer">
-                Radiological Society of North America
-              </a>
-            </li>
+            {visibleSources.map((source) => (
+              <li key={source.url}>
+                <a href={source.url} target="_blank" rel="noreferrer">
+                  {source.label}
+                </a>
+              </li>
+            ))}
           </ul>
+          {showAllSources && extraSources.length > 0 && (
+            <ul className="report-workspace__reference-list report-workspace__reference-list--scroll">
+              {extraSources.map((source) => (
+                <li key={source.url}>
+                  <a href={source.url} target="_blank" rel="noreferrer">
+                    {source.label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+          {extraSources.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              icon={showAllSources ? <FiChevronUp size={14} /> : <FiChevronDown size={14} />}
+              onClick={() => setShowAllSources((prev) => !prev)}
+              fullWidth
+            >
+              {showAllSources ? 'Show less' : `Show ${extraSources.length} more`}
+            </Button>
+          )}
         </Card>
       </aside>
     </div>

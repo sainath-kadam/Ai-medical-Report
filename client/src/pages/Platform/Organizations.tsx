@@ -1,8 +1,9 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiPlus, FiSearch } from 'react-icons/fi';
-import { platformApi, PlatformOrganization } from '../../api/platform.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
+import { usePlatformOrganizations } from '../../hooks/queries/usePlatform';
+import { PlatformOrganization } from '../../api/platform.api';
 import Table, { TableColumn } from '../../components/ui/Table/Table';
 import Pagination from '../../components/ui/Pagination/Pagination';
 import Button from '../../components/common/Button/Button';
@@ -16,42 +17,24 @@ import './Platform.css';
 const PAGE_SIZE = 20;
 
 /** system_admin-only (CONTRACTS.md §2c): every organization on the platform, with its
- * evaluated access state and usage. Click a row to manage its access period. */
+ * evaluated access state and usage. Click a row to manage its access period. Cached per
+ * {page, search} (see hooks/queries/usePlatform.ts) -- coming back from an organization's
+ * detail page with the same search reads straight from cache. */
 export default function Organizations() {
   const navigate = useNavigate();
-  const [items, setItems] = useState<PlatformOrganization[]>([]);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
   const [search, setSearch] = useState('');
   const [activeSearch, setActiveSearch] = useState('');
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
 
-  const load = useCallback(
-    (pageToLoad: number, query: string) => {
-      setIsLoading(true);
-      setError('');
-      platformApi
-        .listOrganizations({ page: pageToLoad, pageSize: PAGE_SIZE, search: query || undefined })
-        .then((data) => {
-          setItems(data.items);
-          setPage(data.page);
-          setTotalPages(data.totalPages);
-          setTotal(data.total);
-        })
-        .catch((err) => setError(apiErrorMessage(err)))
-        .finally(() => setIsLoading(false));
-    },
-    []
-  );
-
-  useEffect(() => {
-    load(1, activeSearch);
-  }, [load, activeSearch]);
+  const { data, isLoading, isError, error } = usePlatformOrganizations({ page, pageSize: PAGE_SIZE, search: activeSearch || undefined });
+  const items = data?.items ?? [];
+  const totalPages = data?.totalPages ?? 1;
+  const total = data?.total ?? 0;
+  const loadError = isError ? apiErrorMessage(error) : '';
 
   function handleSearch(event: FormEvent) {
     event.preventDefault();
+    setPage(1);
     setActiveSearch(search.trim());
   }
 
@@ -120,6 +103,7 @@ export default function Organizations() {
             onClick={() => {
               setSearch('');
               setActiveSearch('');
+              setPage(1);
             }}
           >
             Clear
@@ -131,8 +115,8 @@ export default function Organizations() {
         <div className="platform-page__loading">
           <Loader size="lg" />
         </div>
-      ) : error ? (
-        <div className="platform-page__error">{error}</div>
+      ) : loadError ? (
+        <div className="platform-page__error">{loadError}</div>
       ) : (
         <>
           <Table
@@ -142,7 +126,7 @@ export default function Organizations() {
             onRowClick={(o) => navigate(`/platform/organizations/${o.id}`)}
             emptyMessage={activeSearch ? 'No organizations match that search' : 'No organizations yet — create the first one'}
           />
-          <Pagination page={page} totalPages={totalPages} onPageChange={(p) => load(p, activeSearch)} />
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </>
       )}
     </div>

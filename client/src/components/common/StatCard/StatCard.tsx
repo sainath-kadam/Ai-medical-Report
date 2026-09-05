@@ -12,7 +12,7 @@ interface StatCardProps {
 
 export default function StatCard({ label, value, icon, tone = 'primary', hint }: StatCardProps) {
   return (
-    <Card className="stat-card">
+    <Card className={`stat-card stat-card--${tone} card--interactive`}>
       <div className={`stat-card__icon stat-card__icon--${tone}`}>{icon}</div>
       <div className="stat-card__body">
         <span className="stat-card__label">{label}</span>

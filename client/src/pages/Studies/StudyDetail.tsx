@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   FiAlertTriangle,
   FiArrowLeft,
@@ -13,13 +14,16 @@ import {
   FiUploadCloud,
 } from 'react-icons/fi';
 import { studyApi } from '../../api/study.api';
-import { patientApi } from '../../api/patient.api';
 import { reportApi } from '../../api/report.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
-import { AnalysisJob, GeneratedReportContent, Patient, Report, Study, StudyFile } from '../../types';
+import { useStudy, useStudyJobs, useStudyReport } from '../../hooks/queries/useStudies';
+import { usePatient } from '../../hooks/queries/usePatients';
+import { queryKeys } from '../../lib/queryKeys';
+import { GeneratedReportContent, StudyFile } from '../../types';
 import {
   ANALYSIS_JOB_STAGES,
   ANALYSIS_JOB_STATUS_META,
+  friendlyAnalysisJobError,
   MODALITY_LABELS,
   STUDY_STATUS_META,
   TERMINAL_JOB_STATUSES,
@@ -54,16 +58,28 @@ export default function StudyDetail() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
 
-  const [study, setStudy] = useState<Study | null>(null);
-  const [patient, setPatient] = useState<Patient | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  // Every GET below is cached (see hooks/queries/useStudies.ts / usePatients.ts) --
+  // arriving here from the Studies list, a patient's page, or coming back after a quick
+  // detour elsewhere often costs zero network requests while still fresh.
+  const { data: study, isLoading, isError, error, refetch: refetchStudy } = useStudy(id);
+  // The study's own `patient` field may or may not be embedded by the backend -- fall
+  // back to a fetch only when it isn't, sharing the exact cache entry PatientDetail's own
+  // page reads (queryKeys.patients.detail), so visiting both never double-fetches.
+  const { data: fetchedPatient } = usePatient(study && !study.patient ? study.patientId : undefined);
+  const patient = study?.patient ?? fetchedPatient ?? null;
 
-  const [report, setReport] = useState<Report | null>(null);
-  const [isReportLoading, setIsReportLoading] = useState(false);
+  // KNOWN GAP (see CONTRACTS.md §9): there is no GET /studies/{id}/report convenience
+  // endpoint yet, so this locates the report the same indirect way the app always has --
+  // narrow reports by patientId and match the exact study client-side (useStudyReport).
+  const { data: report = null, isLoading: isReportLoading } = useStudyReport(study?.id, study?.patientId);
   const [selectedVersion, setSelectedVersion] = useState(1);
-  const [jobHistory, setJobHistory] = useState<AnalysisJob[]>([]);
+  useEffect(() => {
+    if (report) setSelectedVersion(report.currentVersion);
+  }, [report?.id, report?.currentVersion]);
+
+  const { data: jobHistory = [] } = useStudyJobs(study?.id);
 
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -88,99 +104,46 @@ export default function StudyDetail() {
     setSearchParams(next, { replace: true });
   }
 
-  const loadStudy = useCallback(() => {
-    if (!id) return;
-    setIsLoading(true);
-    setError('');
-    studyApi
-      .getById(id)
-      .then(setStudy)
-      .catch((err) => setError(apiErrorMessage(err)))
-      .finally(() => setIsLoading(false));
-  }, [id]);
-
-  useEffect(() => {
-    loadStudy();
-  }, [loadStudy]);
-
-  // The study's own patient field may or may not be embedded by the backend -- fetch it
-  // separately as a fallback so the Overview tab always has something to show.
-  useEffect(() => {
-    if (!study) return;
-    if (study.patient) {
-      setPatient(study.patient);
-      return;
-    }
-    patientApi.getById(study.patientId).then(setPatient).catch(() => { });
-  }, [study]);
-
-  // KNOWN GAP (see CONTRACTS.md §9): there is no `GET /studies/{id}/report` convenience
-  // endpoint yet, so the report for this study is located the same indirect way the old
-  // StudyDetail did -- narrow reports by patientId and match the exact study client-side.
-  const loadReport = useCallback(async () => {
-    if (!study) return;
-    setIsReportLoading(true);
-    try {
-      const { items } = await reportApi.list({ patientId: study.patientId, pageSize: 50 });
-      const match = items.find((r) => r.studyId === study.id);
-      if (match) {
-        const full = await reportApi.getById(match.id);
-        setReport(full);
-        setSelectedVersion(full.currentVersion);
-      } else {
-        setReport(null);
-      }
-    } catch {
-      setReport(null);
-    } finally {
-      setIsReportLoading(false);
-    }
-  }, [study?.id, study?.patientId]);
-
-  useEffect(() => {
-    loadReport();
-  }, [loadReport]);
-
-  const refreshJobHistory = useCallback(() => {
-    if (!study) return;
-    studyApi.getJobsForStudy(study.id).then((jobs) => setJobHistory(jobs)).catch(() => { });
-  }, [study?.id]);
+  // A study's status/files can change from AI analysis alone (not just this tab's own
+  // actions), so any mutation below invalidates the whole `studies` domain rather than
+  // hand-picking this one id -- simple, and the Studies list / other open study pages
+  // pick up the change on their own next render instead of showing stale status.
+  const invalidateStudy = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.studies.all });
+  }, [queryClient]);
+  // Same idea for anything that changes report CONTENT: the report itself, the reports
+  // list, and the Dashboard's stats/recent-reports all embed a snapshot of it.
+  const invalidateReportRelated = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: queryKeys.studies.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.reports.all });
+    queryClient.invalidateQueries({ queryKey: queryKeys.dashboard.all });
+  }, [queryClient]);
 
   const { job, poll } = useAnalysisJobPolling((finished) => {
     setIsRunningAnalysis(false);
     setIsApplyingChanges(false);
-    loadStudy();
-    refreshJobHistory();
     if (finished.status === 'failed') {
-      setActionError(finished.error || 'The AI analysis failed. Please try again.');
+      invalidateStudy();
+      setActionError(friendlyAnalysisJobError(finished));
     } else {
-      loadReport();
+      invalidateReportRelated();
     }
   });
 
-  // Resume watching an in-flight job, and populate the History tab, on (re)load -- e.g. the
-  // user navigated away mid-analysis.
+  // Resume watching an in-flight job on (re)load -- e.g. the user navigated away
+  // mid-analysis. Runs once per study id (a background refetch of jobHistory afterwards
+  // must not re-trigger this), not on every jobHistory cache update.
+  const resumeCheckedForStudyId = useRef<string | null>(null);
   useEffect(() => {
-    if (!study) return;
-    let cancelled = false;
-    studyApi
-      .getJobsForStudy(study.id)
-      .then((jobs) => {
-        if (cancelled) return;
-        setJobHistory(jobs);
-        if (jobs.length === 0) return;
-        const latest = [...jobs].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
-        if (!TERMINAL_JOB_STATUSES.includes(latest.status)) {
-          setIsRunningAnalysis(true);
-          poll(latest.id);
-        }
-      })
-      .catch(() => { });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [study?.id]);
+    if (!study || jobHistory.length === 0) return;
+    if (resumeCheckedForStudyId.current === study.id) return;
+    resumeCheckedForStudyId.current = study.id;
+    const latest = [...jobHistory].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
+    if (!TERMINAL_JOB_STATUSES.includes(latest.status)) {
+      setIsRunningAnalysis(true);
+      poll(latest.id);
+    }
+  }, [study, jobHistory, poll]);
 
   const canRunAnalysis = user?.role === 'org_admin' || user?.role === 'doctor';
   const isBusy = isRunningAnalysis || isRegenerating || isFinalizing || isApplyingChanges || isSavingEdit || isAmending;
@@ -204,7 +167,7 @@ export default function StudyDetail() {
     setUploadError('');
     try {
       const updated = await studyApi.uploadFile(study.id, pendingFile);
-      setStudy(updated);
+      queryClient.setQueryData(queryKeys.studies.detail(study.id), updated);
       setPendingFile(null);
     } catch (err) {
       setUploadError(apiErrorMessage(err));
@@ -227,13 +190,13 @@ export default function StudyDetail() {
   }
 
   async function handleRegenerate() {
-    if (!report) return;
+    if (!report || !study) return;
     setActionError('');
     setIsRegenerating(true);
     try {
       const updated = await reportApi.regenerate(report.id);
-      setReport(updated);
-      setSelectedVersion(updated.currentVersion);
+      queryClient.setQueryData(queryKeys.studies.report(study.id), updated);
+      invalidateReportRelated();
     } catch (err) {
       setActionError(apiErrorMessage(err));
     } finally {
@@ -242,13 +205,13 @@ export default function StudyDetail() {
   }
 
   async function handleSaveReportEdit(content: GeneratedReportContent) {
-    if (!report) return;
+    if (!report || !study) return;
     setActionError('');
     setIsSavingEdit(true);
     try {
       const updated = await reportApi.update(report.id, content);
-      setReport(updated);
-      setSelectedVersion(updated.currentVersion);
+      queryClient.setQueryData(queryKeys.studies.report(study.id), updated);
+      invalidateReportRelated();
     } catch (err) {
       setActionError(apiErrorMessage(err));
       throw err; // re-thrown so ReportViewer knows the save failed and stays in edit mode
@@ -258,12 +221,13 @@ export default function StudyDetail() {
   }
 
   async function handleFinalize() {
-    if (!report) return;
+    if (!report || !study) return;
     setActionError('');
     setIsFinalizing(true);
     try {
       const updated = await reportApi.finalize(report.id);
-      setReport(updated);
+      queryClient.setQueryData(queryKeys.studies.report(study.id), updated);
+      invalidateReportRelated();
     } catch (err) {
       setActionError(apiErrorMessage(err));
     } finally {
@@ -272,13 +236,13 @@ export default function StudyDetail() {
   }
 
   async function handleAmend() {
-    if (!report) return;
+    if (!report || !study) return;
     setActionError('');
     setIsAmending(true);
     try {
       const updated = await reportApi.amend(report.id);
-      setReport(updated);
-      setSelectedVersion(updated.currentVersion);
+      queryClient.setQueryData(queryKeys.studies.report(study.id), updated);
+      invalidateReportRelated();
     } catch (err) {
       setActionError(apiErrorMessage(err));
     } finally {
@@ -318,7 +282,7 @@ export default function StudyDetail() {
   if (!study) {
     return (
       <Card>
-        <p className="study-detail__error-text">{error || 'Study not found.'}</p>
+        <p className="study-detail__error-text">{isError ? apiErrorMessage(error) : 'Study not found.'}</p>
         <Button variant="outline" onClick={() => navigate('/studies')} icon={<FiArrowLeft size={15} />}>
           Back to studies
         </Button>
@@ -349,14 +313,21 @@ export default function StudyDetail() {
         <StatusBadge label={statusMeta.label} tone={statusMeta.tone} />
       </div>
 
-      {error && <div className="study-detail__banner-error">{error}</div>}
+      {isError && (
+        <div className="study-detail__banner-error">
+          {apiErrorMessage(error)}{' '}
+          <button className="study-detail__retry" onClick={() => refetchStudy()}>
+            Try again
+          </button>
+        </div>
+      )}
 
       <Tabs
         activeKey={activeTab}
         onChange={(key) => setActiveTab(key as TabKey)}
         items={[
           { key: 'overview', label: 'Overview' },
-          { key: 'images', label: 'Images', badge: study.files.length > 0 ? <span className="study-detail__tab-count">{study.files.length}</span> : undefined },
+          { key: 'images', label: 'Source', badge: study.files.length > 0 ? <span className="study-detail__tab-count">{study.files.length}</span> : undefined },
           { key: 'report', label: 'Report', badge: report && report.status !== 'finalized' ? <span className="study-detail__tab-dot" /> : undefined },
           { key: 'history', label: 'History' },
         ]}
@@ -561,10 +532,10 @@ export default function StudyDetail() {
                   <EmptyState
                     icon={<FiFile />}
                     title="No imaging file yet"
-                    description="Upload a scan in the Images tab before running AI analysis."
+                    description="Upload a scan in the Source tab before running AI analysis."
                     action={
                       <Button variant="outline" onClick={() => setActiveTab('images')}>
-                        Go to Images
+                        Go to Source
                       </Button>
                     }
                   />
@@ -637,7 +608,9 @@ export default function StudyDetail() {
                   <li key={entry.id}>
                     <StatusBadge label={meta.label} tone={meta.tone} />
                     <span className="study-detail__history-time">{formatDateTime(entry.createdAt)}</span>
-                    {entry.error && <span className="study-detail__history-note">{entry.error}</span>}
+                    {entry.error && (
+                      <span className="study-detail__history-note">{friendlyAnalysisJobError(entry)}</span>
+                    )}
                   </li>
                 );
               })}

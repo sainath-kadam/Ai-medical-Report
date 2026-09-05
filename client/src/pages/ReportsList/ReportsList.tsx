@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { FiFileText } from 'react-icons/fi';
-import { reportApi } from '../../api/report.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
-import { Modality, Report, ReportStatus } from '../../types';
+import { useReportsList } from '../../hooks/queries/useReports';
+import { Modality, ReportStatus } from '../../types';
 import { REPORT_STATUS_OPTIONS } from '../../utils/statusMeta';
 import { MODALITY_OPTIONS } from '../../utils/studyMeta';
 import ReportCard from '../../components/reports/ReportCard/ReportCard';
@@ -18,39 +18,22 @@ const STATUS_FILTER_OPTIONS: SelectOption[] = [{ value: 'all', label: 'All statu
 const MODALITY_FILTER_OPTIONS: SelectOption[] = [{ value: 'all', label: 'All modalities' }, ...MODALITY_OPTIONS];
 
 export default function ReportsList() {
-  const [reports, setReports] = useState<Report[]>([]);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
-
   const [statusFilter, setStatusFilter] = useState<ReportStatus | 'all'>('all');
   const [modalityFilter, setModalityFilter] = useState<Modality | 'all'>('all');
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  const load = useCallback(() => {
-    setIsLoading(true);
-    setError('');
-    reportApi
-      .list({
-        page,
-        pageSize: PAGE_SIZE,
-        status: statusFilter === 'all' ? undefined : statusFilter,
-        modality: modalityFilter === 'all' ? undefined : modalityFilter,
-      })
-      .then((data) => {
-        setReports(data.items);
-        setTotalPages(data.totalPages);
-        setTotal(data.total);
-      })
-      .catch((err) => setError(apiErrorMessage(err)))
-      .finally(() => setIsLoading(false));
-  }, [page, statusFilter, modalityFilter]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  // Cached per {page, status, modality} (see hooks/queries/useReports.ts) -- filtering
+  // back to a combination already seen this session reads straight from cache.
+  const { data, isLoading, isError, error, refetch } = useReportsList({
+    page,
+    pageSize: PAGE_SIZE,
+    status: statusFilter === 'all' ? undefined : statusFilter,
+    modality: modalityFilter === 'all' ? undefined : modalityFilter,
+  });
+  const reports = data?.items ?? [];
+  const totalPages = data?.totalPages ?? 1;
+  const total = data?.total ?? 0;
+  const loadError = isError ? apiErrorMessage(error) : '';
 
   function handleStatusChange(value: string) {
     setStatusFilter(value === 'all' ? 'all' : (value as ReportStatus));
@@ -86,10 +69,10 @@ export default function ReportsList() {
         />
       </div>
 
-      {error && (
+      {loadError && (
         <div className="reports-list-page__error">
-          {error}{' '}
-          <button className="reports-list-page__retry" onClick={load}>
+          {loadError}{' '}
+          <button className="reports-list-page__retry" onClick={() => refetch()}>
             Try again
           </button>
         </div>

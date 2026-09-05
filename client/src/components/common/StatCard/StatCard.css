@@ -1,7 +1,38 @@
 .stat-card {
+  position: relative;
   display: flex;
   align-items: center;
   gap: var(--space-4);
+  overflow: hidden;
+}
+
+/* A thin tone-colored rail along the top edge -- a quiet accent that also gives each
+   tile a distinct identity at a glance across a row of otherwise-identical cards. */
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--stat-card-tone, var(--color-primary));
+  opacity: 0.85;
+}
+.stat-card--primary {
+  --stat-card-tone: var(--color-primary);
+}
+.stat-card--accent {
+  --stat-card-tone: var(--color-accent);
+}
+.stat-card--success {
+  --stat-card-tone: var(--color-success);
+}
+.stat-card--warning {
+  --stat-card-tone: var(--color-warning);
+}
+
+.stat-card.card--interactive:hover {
+  box-shadow: 0 14px 28px -12px color-mix(in srgb, var(--stat-card-tone, var(--color-primary)) 40%, transparent), var(--shadow-md);
 }
 
 .stat-card__icon {
@@ -13,22 +44,26 @@
   align-items: center;
   justify-content: center;
   font-size: 1.3rem;
+  transition: transform var(--transition-base);
+}
+.stat-card.card--interactive:hover .stat-card__icon {
+  transform: scale(1.08);
 }
 
 .stat-card__icon--primary {
-  background: var(--color-primary-light);
+  background: linear-gradient(135deg, var(--color-primary-light), color-mix(in srgb, var(--color-primary) 18%, var(--color-primary-light)));
   color: var(--color-primary);
 }
 .stat-card__icon--accent {
-  background: var(--color-accent-light);
+  background: linear-gradient(135deg, var(--color-accent-light), color-mix(in srgb, var(--color-accent) 18%, var(--color-accent-light)));
   color: var(--color-accent);
 }
 .stat-card__icon--success {
-  background: var(--color-success-bg);
+  background: linear-gradient(135deg, var(--color-success-bg), color-mix(in srgb, var(--color-success) 18%, var(--color-success-bg)));
   color: var(--color-success);
 }
 .stat-card__icon--warning {
-  background: var(--color-warning-bg);
+  background: linear-gradient(135deg, var(--color-warning-bg), color-mix(in srgb, var(--color-warning) 18%, var(--color-warning-bg)));
   color: var(--color-warning);
 }
 
@@ -45,10 +80,12 @@
 }
 
 .stat-card__value {
-  font-size: 1.6rem;
-  font-weight: 700;
+  font-size: 1.75rem;
+  font-weight: 800;
   color: var(--color-text-primary);
   line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
 }
 
 .stat-card__hint {

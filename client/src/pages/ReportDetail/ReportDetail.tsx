@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react';
 import { Navigate, useParams } from 'react-router-dom';
-import { reportApi } from '../../api/report.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
+import { useReport } from '../../hooks/queries/useReports';
 import Card from '../../components/common/Card/Card';
 import Button from '../../components/common/Button/Button';
 import Loader from '../../components/common/Loader/Loader';
@@ -11,24 +10,17 @@ import './ReportDetail.css';
  *  StudyDetail.tsx` is the one place a report is viewed/edited/finalized (patient/study
  *  metadata used to be duplicated between this page and StudyDetail; now there's exactly
  *  one workspace). This just resolves the report's studyId and redirects there, so every
- *  existing `/reports/{id}` link (ReportCard, ReportsList, notifications) keeps working. */
+ *  existing `/reports/{id}` link (ReportCard, ReportsList, notifications) keeps working.
+ *  Reads the same cached `queryKeys.reports.detail(id)` entry StudyDetail/Dashboard
+ *  populate, so a report already seen elsewhere this session resolves instantly. */
 export default function ReportDetail() {
   const { id } = useParams<{ id: string }>();
-  const [studyId, setStudyId] = useState<string | null>(null);
-  const [error, setError] = useState('');
+  const { data: report, isError, error } = useReport(id);
 
-  useEffect(() => {
-    if (!id) return;
-    reportApi
-      .getById(id)
-      .then((report) => setStudyId(report.studyId))
-      .catch((err) => setError(apiErrorMessage(err)));
-  }, [id]);
-
-  if (error) {
+  if (isError) {
     return (
       <Card>
-        <p>{error}</p>
+        <p>{apiErrorMessage(error)}</p>
         <Button variant="outline" onClick={() => window.history.back()}>
           Go back
         </Button>
@@ -36,7 +28,7 @@ export default function ReportDetail() {
     );
   }
 
-  if (!studyId) {
+  if (!report) {
     return (
       <div className="report-detail__loading">
         <Loader size="lg" label="Loading report…" />
@@ -44,5 +36,5 @@ export default function ReportDetail() {
     );
   }
 
-  return <Navigate to={`/studies/${studyId}?tab=report`} replace />;
+  return <Navigate to={`/studies/${report.studyId}?tab=report`} replace />;
 }

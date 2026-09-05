@@ -34,6 +34,12 @@ cloudinary==1.46.2       # Cloudinary — STORAGE_PROVIDER=cloudinary
 # --- PDF generation ---
 reportlab==4.2.5
 
+# --- Non-image study files: DICOM/video -> plain images for the AI providers ---
+pydicom==2.4.4            # DICOM pixel data decoding (uncompressed transfer syntaxes)
+numpy==1.26.4              # windowing/normalization for DICOM pixel arrays
+pillow==11.3.0              # PNG encoding of decoded DICOM frames (already pulled in transitively by google-genai/reportlab)
+opencv-python-headless==4.10.0.84   # video frame sampling (bundles its own ffmpeg codecs)
+
 # --- Utilities ---
 python-dotenv==1.0.1
 httpx==0.27.2

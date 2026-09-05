@@ -2,25 +2,89 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  animation: report-viewer-rise 420ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes report-viewer-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes report-page-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .report-viewer,
+  .report-viewer__page {
+    animation: none !important;
+  }
 }
 
 /* -------------------------------------------------------------------- */
-/* Toolbar -- zoom + edit, sits above the "page" and is never itself     */
-/* affected by zoom.                                                    */
+/* Toolbar -- a frosted "glass" control bar floating above the page,     */
+/* never itself affected by zoom. Sticky (just below the app's own       */
+/* Topbar) so Save/Cancel while editing stays reachable without a        */
+/* second, duplicate set of the same buttons pinned to the bottom.       */
 /* -------------------------------------------------------------------- */
 .report-viewer__toolbar {
+  position: sticky;
+  top: calc(var(--topbar-height) + var(--space-3));
+  z-index: 15;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
   flex-wrap: wrap;
+  padding: var(--space-2) var(--space-3);
+  background:
+    linear-gradient(
+      120deg,
+      color-mix(in srgb, var(--report-accent, var(--color-primary)) 10%, transparent),
+      transparent 45%
+    ),
+    color-mix(in srgb, var(--color-surface) 78%, transparent);
+  backdrop-filter: blur(14px) saturate(160%);
+  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Primary action inside the toolbar (Edit report) -- a bold gradient CTA, scoped to this
+   component only (via the extra className Button accepts) so the shared .btn--outline
+   style everywhere else in the app is untouched. */
+.report-viewer__cta.btn {
+  background: linear-gradient(135deg, var(--report-accent, var(--color-primary)), color-mix(in srgb, var(--report-accent, var(--color-primary)) 65%, black));
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 6px 16px -4px color-mix(in srgb, var(--report-accent, var(--color-primary)) 55%, transparent);
+  transition: transform 120ms ease, box-shadow var(--transition-base), filter var(--transition-base);
+}
+.report-viewer__cta.btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px -4px color-mix(in srgb, var(--report-accent, var(--color-primary)) 65%, transparent);
 }
 
 .report-viewer__zoom {
   display: flex;
   align-items: center;
   gap: 2px;
-  background: var(--color-surface);
+  background: var(--color-surface-alt);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-pill);
   padding: 3px;
@@ -35,10 +99,15 @@
   cursor: pointer;
   border-radius: var(--radius-pill);
   padding: 6px 8px;
+  transition: background-color var(--transition-base), color var(--transition-base), transform 120ms ease;
 }
 .report-viewer__zoom button:hover:not(:disabled) {
-  background: var(--color-surface-alt);
-  color: var(--color-text-primary);
+  background: var(--color-surface);
+  color: var(--report-accent, var(--color-primary));
+  box-shadow: var(--shadow-sm);
+}
+.report-viewer__zoom button:active:not(:disabled) {
+  transform: scale(0.92);
 }
 .report-viewer__zoom button:disabled {
   opacity: 0.4;
@@ -46,22 +115,70 @@
 }
 .report-viewer__zoom-value {
   font-size: var(--font-size-xs);
-  font-weight: 600;
+  font-weight: 700;
   min-width: 44px;
   color: var(--color-text-primary) !important;
+  font-variant-numeric: tabular-nums;
 }
 
 /* -------------------------------------------------------------------- */
 /* The "page" -- a distinct sheet of paper, independent of the app's own */
 /* card chrome, so what's on screen reads as the actual document rather  */
-/* than a form embedded in the app.                                      */
+/* than a form embedded in the app. Everything in this section is       */
+/* backdrop/elevation/motion only -- the page's own content further      */
+/* below keeps the exact colors/typography/spacing that mirror the      */
+/* printed PDF (server/app/services/pdf_service.py), untouched.          */
 /* -------------------------------------------------------------------- */
 .report-viewer__page-wrap {
+  position: relative;
   overflow: auto;
   background: var(--color-surface-alt);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: var(--space-6) var(--space-4);
+  padding: var(--space-7) var(--space-4);
+  isolation: isolate;
+}
+
+/* Two soft, blurred color "orbs" drifting behind the page -- the ambient mesh-gradient
+   backdrop familiar from modern product/landing pages (Linear, Stripe, Vercel). Purely
+   decorative canvas dressing behind the paper; the paper's own content is unaffected. */
+.report-viewer__page-wrap::before,
+.report-viewer__page-wrap::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  width: 480px;
+  height: 480px;
+  border-radius: 50%;
+  filter: blur(90px);
+  opacity: 0.22;
+  pointer-events: none;
+  animation: report-orb-drift 16s ease-in-out infinite alternate;
+}
+.report-viewer__page-wrap::before {
+  top: -180px;
+  left: -140px;
+  background: var(--report-accent, var(--color-primary));
+}
+.report-viewer__page-wrap::after {
+  bottom: -200px;
+  right: -160px;
+  background: var(--color-accent);
+  animation-delay: -8s;
+}
+@keyframes report-orb-drift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(40px, 30px) scale(1.12);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .report-viewer__page-wrap::before,
+  .report-viewer__page-wrap::after {
+    animation: none;
+  }
 }
 
 .report-viewer__page {
@@ -70,12 +187,33 @@
   zoom: var(--report-zoom, 1);
   max-width: 780px;
   margin: 0 auto;
+  position: relative;
   background: var(--report-bg-color, var(--color-surface));
   color: var(--report-text-color, var(--color-text-primary));
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  box-shadow: var(--shadow-md);
+  /* A glossy, color-tinted elevation (not just flat gray) -- the page reads as a lifted,
+     lit sheet of paper floating above the ambient backdrop rather than a plain bordered
+     box. The tint comes from the org's own accent, same as the CTA button above. */
+  box-shadow:
+    0 1px 1px rgba(16, 24, 40, 0.04),
+    0 24px 48px -20px color-mix(in srgb, var(--report-accent, var(--color-primary)) 35%, transparent),
+    var(--shadow-lg);
   overflow: hidden;
+  animation: report-page-in 480ms cubic-bezier(0.16, 1, 0.3, 1);
+  transition: box-shadow var(--transition-base);
+}
+
+/* Editing affordance -- a soft glowing ring around the whole page (never inside it) so
+   it's unmistakable the document is live/editable right now, the same way Docs/Notion
+   ring a block or page under active edit. Purely an outer glow -- nothing inside the
+   page's own box-shadow-free content changes color because of it. */
+.report-viewer--editing .report-viewer__page {
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--report-accent, var(--color-primary)) 30%, transparent),
+    0 1px 1px rgba(16, 24, 40, 0.04),
+    0 24px 48px -20px color-mix(in srgb, var(--report-accent, var(--color-primary)) 35%, transparent),
+    var(--shadow-lg);
 }
 
 .report-viewer__header {
@@ -132,6 +270,12 @@
   font-weight: 600;
   cursor: pointer;
   color: var(--color-text-secondary);
+  transition: background-color var(--transition-base), border-color var(--transition-base), color var(--transition-base),
+    transform 120ms ease, box-shadow var(--transition-base);
+}
+.report-viewer__version-pill:hover {
+  border-color: var(--report-text-color, var(--color-text-primary));
+  transform: translateY(-1px);
 }
 .report-viewer__version-pill--active {
   /* Text-primary as the fill, surface as the text -- these two tokens are always
@@ -141,6 +285,10 @@
   background: var(--report-text-color, var(--color-text-primary));
   border-color: var(--report-text-color, var(--color-text-primary));
   color: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+.report-viewer__version-pill--active:hover {
+  transform: none;
 }
 
 .report-viewer__change-note {
@@ -154,27 +302,35 @@
 
 /* Patient / study identification block -- a bordered box of label/value pairs, the way a
    printed RIS-generated report identifies the patient and study before any narrative
-   content (mirrors server/app/services/pdf_service.py's id_table exactly). */
+   content (mirrors server/app/services/pdf_service.py's id_table exactly).
+
+   Four grid columns (label, value, label, value), not two, with dt/dd as DIRECT grid
+   children (see ReportViewer.tsx -- no wrapping <div> per pair). That's the point: CSS
+   Grid sizes every column to the widest content IN THAT COLUMN ACROSS ALL ROWS, so
+   column 1 becomes exactly as wide as "Referring Physician :" (its longest label) and
+   every value in column 2 starts at that same x position on every row. The previous
+   markup wrapped each dt/dd pair in its own flex <div>, which sized independently PER
+   ROW -- "Patient Name :" (short) let its value start much further left than "Referring
+   Physician :" (long) did on another row, even though the printed PDF (pdf_service.py's
+   `id_table`, a real reportlab Table with fixed colWidths) never had that problem. */
 .report-viewer__idblock {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: var(--space-2) var(--space-5);
+  grid-template-columns: auto 1fr auto 1fr;
+  column-gap: var(--space-3);
+  row-gap: var(--space-2);
   margin: var(--space-4) var(--space-5) 0;
   padding: var(--space-3) var(--space-4);
   border: 1px solid var(--report-text-color, var(--color-text-primary));
-}
-.report-viewer__idblock > div {
-  display: flex;
-  gap: var(--space-2);
   font-size: var(--report-font-size, 1rem);
 }
 .report-viewer__idblock dt {
   color: var(--report-text-color, var(--color-text-primary));
   font-weight: 600;
-  flex-shrink: 0;
+  white-space: nowrap;
 }
 .report-viewer__idblock dd {
   color: var(--report-text-color, var(--color-text-primary));
+  min-width: 0;
 }
 
 .report-viewer__exam {
@@ -242,9 +398,9 @@
   line-height: inherit;
   color: inherit;
   white-space: pre-wrap;
+  transition: background-color var(--transition-base), outline-color var(--transition-base);
 }
 .report-viewer__field:hover {
-  box-shadow: 0 0 0 1px dashed transparent;
   outline: 1px dashed var(--color-border-strong);
 }
 .report-viewer__field:focus {
@@ -327,17 +483,41 @@
   flex-wrap: wrap;
 }
 .report-viewer__editing-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  color: var(--report-accent, var(--color-primary));
+  font-weight: 600;
   margin-right: var(--space-2);
 }
-
-.report-viewer__edit-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: var(--space-3);
-  flex-wrap: wrap;
+/* A small breathing dot ahead of the editing hint text -- the same "something is live"
+   language as a recording indicator, scoped to text-only content so it never appears
+   inside the page/document itself. */
+.report-viewer__editing-hint::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--report-accent, var(--color-primary));
+  animation: report-viewer-pulse 1.6s ease-in-out infinite;
+  flex-shrink: 0;
+}
+@keyframes report-viewer-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.45;
+    transform: scale(0.72);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .report-viewer__editing-hint::before {
+    animation: none;
+  }
 }
 
 .report-viewer__save-error {
@@ -357,7 +537,10 @@
     padding: var(--space-4);
   }
   .report-viewer__idblock {
-    grid-template-columns: 1fr;
+    /* Collapse from 4 columns (label/value x2 per row) to 2 (label/value, one pair per
+       row) -- still a shared grid, so every value on narrow screens lines up under the
+       single now-widest label ("Referring Physician :"), not per-row like before. */
+    grid-template-columns: auto 1fr;
     margin-left: var(--space-4);
     margin-right: var(--space-4);
   }

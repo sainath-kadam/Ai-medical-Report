@@ -4,6 +4,23 @@
   gap: var(--space-5);
 }
 
+@keyframes dashboard-stagger-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-page__stats > *,
+  .dashboard-page__report-grid > * {
+    animation: none !important;
+  }
+}
+
 .dashboard-page__upload-header {
   display: flex;
   align-items: baseline;
@@ -60,7 +77,12 @@
 }
 .dashboard-page__header h1 {
   font-size: var(--font-size-2xl);
-  color: var(--color-text-primary);
+  /* A subtle gradient on the greeting -- a small, tasteful signature touch on the one
+     headline every doctor sees first, every session. */
+  background: linear-gradient(135deg, var(--color-text-primary), color-mix(in srgb, var(--color-primary) 60%, var(--color-text-primary)));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
 .dashboard-page__loading {
@@ -72,6 +94,9 @@
 .dashboard-page__hero-card {
   width: 100%;
   border-color: var(--color-primary);
+  background:
+    radial-gradient(600px circle at 50% 0%, color-mix(in srgb, var(--color-primary) 8%, transparent), transparent 60%),
+    var(--color-surface);
   text-align: center;
 }
 .dashboard-page__hero-card .empty-state {
@@ -92,6 +117,18 @@
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: var(--space-4);
 }
+/* A quick staggered rise for the stat row on first paint -- each tile a beat behind the
+   last, rather than the whole row popping in at once. Pure CSS (nth-child), no markup
+   change needed. */
+.dashboard-page__stats > * {
+  animation: dashboard-stagger-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.dashboard-page__stats > *:nth-child(1) { animation-delay: 0ms; }
+.dashboard-page__stats > *:nth-child(2) { animation-delay: 40ms; }
+.dashboard-page__stats > *:nth-child(3) { animation-delay: 80ms; }
+.dashboard-page__stats > *:nth-child(4) { animation-delay: 120ms; }
+.dashboard-page__stats > *:nth-child(5) { animation-delay: 160ms; }
+.dashboard-page__stats > *:nth-child(6) { animation-delay: 200ms; }
 
 .dashboard-page__section-header {
   display: flex;
@@ -103,17 +140,68 @@
   font-size: var(--font-size-lg);
   color: var(--color-text-primary);
 }
+.dashboard-page__section-header a {
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+  color: var(--color-primary);
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  background: var(--color-primary-light);
+  transition: background-color var(--transition-base), transform 120ms ease;
+}
+.dashboard-page__section-header a:hover {
+  background: color-mix(in srgb, var(--color-primary) 20%, var(--color-primary-light));
+  text-decoration: none;
+  transform: translateY(-1px);
+}
 
 .dashboard-page__report-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: var(--space-3);
 }
+.dashboard-page__report-grid > * {
+  animation: dashboard-stagger-in 420ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.dashboard-page__report-grid > *:nth-child(1) { animation-delay: 0ms; }
+.dashboard-page__report-grid > *:nth-child(2) { animation-delay: 40ms; }
+.dashboard-page__report-grid > *:nth-child(3) { animation-delay: 80ms; }
+.dashboard-page__report-grid > *:nth-child(4) { animation-delay: 120ms; }
+.dashboard-page__report-grid > *:nth-child(5) { animation-delay: 160ms; }
+.dashboard-page__report-grid > *:nth-child(n+6) { animation-delay: 200ms; }
 
 @media (max-width: 640px) {
   .dashboard-page__header {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  /* Two stat tiles per row instead of one full-width column -- the tiles are short
+     label+number pairs, so a phone-width screen has room to pair them up, and it halves
+     how far you scroll to see every stat. Tightened padding/icon/type sizes alongside the
+     narrower column so a 2-3 digit value + its label never wraps awkwardly at ~half
+     phone width. */
+  .dashboard-page__stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--space-3);
+  }
+  .dashboard-page__stats .stat-card.card--padded {
+    padding: var(--space-3);
+  }
+  .dashboard-page__stats .stat-card {
+    gap: var(--space-2);
+  }
+  .dashboard-page__stats .stat-card__icon {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    font-size: 1.05rem;
+  }
+  .dashboard-page__stats .stat-card__value {
+    font-size: 1.4rem;
+  }
+  .dashboard-page__stats .stat-card__label {
+    font-size: var(--font-size-xs);
   }
 }
 

@@ -172,6 +172,7 @@ class AnalysisJob(Base):
     report_model: Mapped[str | None] = mapped_column(String(100))
     input_hash: Mapped[str | None] = mapped_column(String(100))
     error: Mapped[str | None] = mapped_column(Text)
+    error_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     started_at: Mapped[str | None] = mapped_column(String(40))
     completed_at: Mapped[str | None] = mapped_column(String(40))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))

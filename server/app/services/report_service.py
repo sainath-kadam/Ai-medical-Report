@@ -251,6 +251,7 @@ class ReportService:
                     {
                         "status": "failed",
                         "error": str(exc),
+                        "errorCode": getattr(exc, "code", None),
                         "completedAt": datetime.now(timezone.utc).isoformat(),
                     },
                 )

@@ -7,7 +7,8 @@
   border-radius: var(--radius-sm);
   font-weight: 600;
   cursor: pointer;
-  transition: background-color var(--transition-base), border-color var(--transition-base), transform 80ms ease, opacity var(--transition-base);
+  transition: background-color var(--transition-base), border-color var(--transition-base), transform 120ms ease,
+    opacity var(--transition-base), box-shadow var(--transition-base), filter var(--transition-base);
   white-space: nowrap;
 }
 
@@ -37,20 +38,33 @@
   width: 100%;
 }
 
+/* Primary/secondary get a gradient fill + a soft color-matched glow instead of a flat
+   fill -- the same "lit, lifted" language as the rest of the app's premium surfaces
+   (ReportViewer's CTA, Landing's hero buttons) rather than a plain solid rectangle. */
 .btn--primary {
-  background: var(--color-primary);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
   color: var(--color-text-on-primary);
+  box-shadow: 0 4px 14px -2px color-mix(in srgb, var(--color-primary) 35%, transparent);
 }
 .btn--primary:hover:not(:disabled) {
-  background: var(--color-primary-dark);
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px -2px color-mix(in srgb, var(--color-primary) 45%, transparent);
+}
+.btn--primary:active:not(:disabled) {
+  transform: translateY(1px);
+  filter: brightness(0.98);
 }
 
 .btn--secondary {
-  background: var(--color-accent);
+  background: linear-gradient(135deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 70%, black));
   color: var(--color-text-on-primary);
+  box-shadow: 0 4px 14px -2px color-mix(in srgb, var(--color-accent) 35%, transparent);
 }
 .btn--secondary:hover:not(:disabled) {
-  filter: brightness(0.92);
+  filter: brightness(1.06);
+  transform: translateY(-1px);
+  box-shadow: 0 8px 20px -2px color-mix(in srgb, var(--color-accent) 45%, transparent);
 }
 
 .btn--outline {
@@ -60,6 +74,8 @@
 }
 .btn--outline:hover:not(:disabled) {
   background: var(--color-surface-alt);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .btn--ghost {

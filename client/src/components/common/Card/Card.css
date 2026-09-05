@@ -1,10 +1,23 @@
 .card {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition-base), border-color var(--transition-base), transform var(--transition-base);
 }
 
 .card--padded {
   padding: var(--space-5);
+}
+
+/* Opt-in hover lift for cards that act like a clickable/actionable surface (stat tiles,
+   report tiles, feature tiles) -- plain informational cards don't get it, so static
+   content never appears to react to a hover that does nothing. */
+.card--interactive {
+  cursor: pointer;
+}
+.card--interactive:hover {
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-border-strong);
+  transform: translateY(-2px);
 }

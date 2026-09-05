@@ -291,7 +291,6 @@ def build_report_pdf(
         elements.append(Paragraph(_safe(footer["disclaimer"]), disclaimer_style))
     if footer.get("text"):
         elements.append(Paragraph(_safe(footer["text"]), disclaimer_style))
-    elements.append(Paragraph(f"Report {_safe(report_id)} (version {version_number})", disclaimer_style))
 
     if background_color:
         on_page = partial(_draw_background, color=background_color)

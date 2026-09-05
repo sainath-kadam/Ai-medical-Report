@@ -1,8 +1,10 @@
 import { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { FiArrowLeft, FiGlobe } from 'react-icons/fi';
 import { platformApi, CreateOrganizationResult } from '../../api/platform.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
+import { queryKeys } from '../../lib/queryKeys';
 import Card from '../../components/common/Card/Card';
 import Button from '../../components/common/Button/Button';
 import { TextField } from '../../components/common/TextField/TextField';
@@ -14,6 +16,7 @@ const EMPTY_FORM = { organizationName: '', adminName: '', adminEmail: '' };
 /** system_admin-only (CONTRACTS.md §2a) — the one page that creates a brand-new
  * organization, along with its first org_admin, rather than working inside one. */
 export default function CreateOrganization() {
+  const queryClient = useQueryClient();
   const [form, setForm] = useState(EMPTY_FORM);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -31,6 +34,9 @@ export default function CreateOrganization() {
       const result = await platformApi.createOrganization(form);
       setCreated(result);
       setForm(EMPTY_FORM);
+      // So the Organizations list shows it immediately on the next visit, not a stale
+      // cached page from before it existed.
+      queryClient.invalidateQueries({ queryKey: queryKeys.platform.all });
     } catch (err) {
       setError(apiErrorMessage(err));
     } finally {

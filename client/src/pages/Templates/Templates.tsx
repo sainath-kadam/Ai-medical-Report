@@ -1,6 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { FiCheckCircle, FiEdit2, FiPlus, FiStar, FiTrash2 } from 'react-icons/fi';
 import { templateApi } from '../../api/template.api';
+import { apiErrorMessage } from '../../api/axiosInstance';
+import { useTemplatesList } from '../../hooks/queries/useTemplates';
+import { queryKeys } from '../../lib/queryKeys';
 import { ReportTemplate } from '../../types';
 import Card from '../../components/common/Card/Card';
 import Button from '../../components/common/Button/Button';
@@ -9,32 +13,31 @@ import Loader from '../../components/common/Loader/Loader';
 import EmptyState from '../../components/common/EmptyState/EmptyState';
 import TemplateForm, { TemplateFormValues } from '../../components/templates/TemplateForm/TemplateForm';
 import TemplatePresetGallery from '../../components/templates/TemplatePresetGallery/TemplatePresetGallery';
-import { apiErrorMessage } from '../../api/axiosInstance';
 import { useAuth } from '../../hooks/useAuth';
 import './Templates.css';
 
 export default function Templates() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const canManage = user?.role === 'org_admin';
-  const [templates, setTemplates] = useState<ReportTemplate[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+
+  // Shared with NewStudyForm's template picker (same query key) -- customizing a
+  // template here and then starting a new study elsewhere never shows a stale list.
+  const { data: templates = [], isLoading, isError, error: loadErrorObj, refetch } = useTemplatesList();
   const [modalMode, setModalMode] = useState<'choose-preset' | 'create' | 'edit' | null>(null);
   const [activeTemplate, setActiveTemplate] = useState<ReportTemplate | null>(null);
   const [draftValues, setDraftValues] = useState<TemplateFormValues | undefined>(undefined);
   const [error, setError] = useState('');
 
-  function load() {
-    setIsLoading(true);
-    templateApi.list().then(setTemplates).finally(() => setIsLoading(false));
+  function invalidateTemplates() {
+    queryClient.invalidateQueries({ queryKey: queryKeys.templates.all });
   }
-
-  useEffect(load, []);
 
   async function handleCreate(values: TemplateFormValues) {
     try {
       await templateApi.create(values);
       setModalMode(null);
-      load();
+      invalidateTemplates();
     } catch (err) {
       setError(apiErrorMessage(err));
     }
@@ -46,7 +49,7 @@ export default function Templates() {
       await templateApi.update(activeTemplate.id, values);
       setModalMode(null);
       setActiveTemplate(null);
-      load();
+      invalidateTemplates();
     } catch (err) {
       setError(apiErrorMessage(err));
     }
@@ -54,18 +57,20 @@ export default function Templates() {
 
   async function handleSetDefault(id: string) {
     await templateApi.setDefault(id);
-    load();
+    invalidateTemplates();
   }
 
   async function handleDelete(id: string) {
     if (!confirm('Delete this template? This cannot be undone.')) return;
     try {
       await templateApi.remove(id);
-      load();
+      invalidateTemplates();
     } catch (err) {
       setError(apiErrorMessage(err));
     }
   }
+
+  const loadError = isError ? apiErrorMessage(loadErrorObj) : '';
 
   return (
     <div className="templates-page">
@@ -81,12 +86,16 @@ export default function Templates() {
         )}
       </div>
 
-      {error && <div className="templates-page__error">{error}</div>}
+      {(error || loadError) && <div className="templates-page__error">{error || loadError}</div>}
 
       {isLoading ? (
         <div className="templates-page__loading">
           <Loader size="lg" />
         </div>
+      ) : loadError ? (
+        <Button variant="outline" onClick={() => refetch()}>
+          Try again
+        </Button>
       ) : templates.length === 0 ? (
         <EmptyState title="No templates yet" description="Create a template to control how AI-drafted reports look." />
       ) : (

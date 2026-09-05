@@ -25,7 +25,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
       <aside className={`sidebar ${isOpen ? 'sidebar--open' : ''}`} aria-label="Mobile navigation">
         <div className="sidebar__header">
           <span className="sidebar__brand">
-            MedScan <strong>AI</strong>
+            <img src="/LogoMedicalAI2.jpg" alt="" className="sidebar__brand-mark" />
+            Medo <strong>AI</strong>
           </span>
           <button className="sidebar__close" onClick={onClose} aria-label="Close navigation menu">
             <FiX size={20} />

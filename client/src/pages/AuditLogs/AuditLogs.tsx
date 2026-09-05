@@ -1,8 +1,7 @@
-import { FormEvent, useCallback, useEffect, useState } from 'react';
+import { FormEvent, useState } from 'react';
 import { FiSearch, FiShield, FiXCircle } from 'react-icons/fi';
-import { auditLogApi } from '../../api/auditLog.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
-import { AuditLog } from '../../types';
+import { useAuditLogsList } from '../../hooks/queries/useAuditLogs';
 import Table, { TableColumn } from '../../components/ui/Table/Table';
 import Pagination from '../../components/ui/Pagination/Pagination';
 import { TextField } from '../../components/common/TextField/TextField';
@@ -10,6 +9,7 @@ import Button from '../../components/common/Button/Button';
 import Loader from '../../components/common/Loader/Loader';
 import EmptyState from '../../components/common/EmptyState/EmptyState';
 import StatusBadge from '../../components/common/StatusBadge/StatusBadge';
+import { AuditLog } from '../../types';
 import { formatDateTime } from '../../utils/formatDate';
 import { humanizeAction } from '../../utils/formatAction';
 import './AuditLogs.css';
@@ -17,12 +17,7 @@ import './AuditLogs.css';
 const PAGE_SIZE = 20;
 
 export default function AuditLogs() {
-  const [logs, setLogs] = useState<AuditLog[]>([]);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
 
   // actionDraft/resourceTypeDraft track the text fields as the user types;
   // actionFilter/resourceTypeFilter are only committed on submit and are what
@@ -34,28 +29,18 @@ export default function AuditLogs() {
 
   const hasFilters = Boolean(actionFilter || resourceTypeFilter);
 
-  const load = useCallback(() => {
-    setIsLoading(true);
-    setError('');
-    auditLogApi
-      .list({
-        page,
-        pageSize: PAGE_SIZE,
-        action: actionFilter || undefined,
-        resourceType: resourceTypeFilter || undefined,
-      })
-      .then((data) => {
-        setLogs(data.items);
-        setTotalPages(data.totalPages);
-        setTotal(data.total);
-      })
-      .catch((err) => setError(apiErrorMessage(err)))
-      .finally(() => setIsLoading(false));
-  }, [page, actionFilter, resourceTypeFilter]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  // Cached per {page, action, resourceType} (see hooks/queries/useAuditLogs.ts) --
+  // clearing a filter back to one already seen this session is instant.
+  const { data, isLoading, isError, error, refetch } = useAuditLogsList({
+    page,
+    pageSize: PAGE_SIZE,
+    action: actionFilter || undefined,
+    resourceType: resourceTypeFilter || undefined,
+  });
+  const logs = data?.items ?? [];
+  const totalPages = data?.totalPages ?? 1;
+  const total = data?.total ?? 0;
+  const loadError = isError ? apiErrorMessage(error) : '';
 
   function handleApplyFilters(event: FormEvent) {
     event.preventDefault();
@@ -139,10 +124,10 @@ export default function AuditLogs() {
         )}
       </form>
 
-      {error ? (
+      {loadError ? (
         <div className="audit-logs-page__error">
-          <span>{error}</span>
-          <Button size="sm" variant="ghost" onClick={load}>
+          <span>{loadError}</span>
+          <Button size="sm" variant="ghost" onClick={() => refetch()}>
             Retry
           </Button>
         </div>

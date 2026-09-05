@@ -1,7 +1,10 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { FiPlus, FiShield } from 'react-icons/fi';
 import { platformApi, InviteSystemAdminResult } from '../../api/platform.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
+import { useSystemAdmins } from '../../hooks/queries/usePlatform';
+import { queryKeys } from '../../lib/queryKeys';
 import { User } from '../../types';
 import Table, { TableColumn } from '../../components/ui/Table/Table';
 import Button from '../../components/common/Button/Button';
@@ -21,9 +24,8 @@ const EMPTY_INVITE = { name: '', email: '' };
  * one-time CLI bootstrap) creates one. */
 export default function SystemAdmins() {
   const { user: currentUser } = useAuth();
-  const [admins, setAdmins] = useState<User[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
+  const queryClient = useQueryClient();
+  const { data: admins = [], isLoading, isError, error } = useSystemAdmins();
 
   const [isInviteOpen, setIsInviteOpen] = useState(false);
   const [inviteForm, setInviteForm] = useState(EMPTY_INVITE);
@@ -31,19 +33,7 @@ export default function SystemAdmins() {
   const [isInviting, setIsInviting] = useState(false);
   const [created, setCreated] = useState<InviteSystemAdminResult | null>(null);
 
-  function load() {
-    setIsLoading(true);
-    setError('');
-    platformApi
-      .listSystemAdmins()
-      .then(setAdmins)
-      .catch((err) => setError(apiErrorMessage(err)))
-      .finally(() => setIsLoading(false));
-  }
-
-  useEffect(() => {
-    load();
-  }, []);
+  const loadError = isError ? apiErrorMessage(error) : '';
 
   async function handleInvite(event: FormEvent) {
     event.preventDefault();
@@ -54,7 +44,7 @@ export default function SystemAdmins() {
       setIsInviteOpen(false);
       setInviteForm(EMPTY_INVITE);
       setCreated(result);
-      load();
+      queryClient.invalidateQueries({ queryKey: queryKeys.platform.systemAdmins() });
     } catch (err) {
       setInviteError(apiErrorMessage(err));
     } finally {
@@ -115,8 +105,8 @@ export default function SystemAdmins() {
         <div className="platform-page__loading">
           <Loader size="lg" />
         </div>
-      ) : error ? (
-        <div className="platform-page__error">{error}</div>
+      ) : loadError ? (
+        <div className="platform-page__error">{loadError}</div>
       ) : (
         <Table columns={columns} rows={admins} rowKey={(u) => u.id} emptyMessage="No platform admins found" />
       )}

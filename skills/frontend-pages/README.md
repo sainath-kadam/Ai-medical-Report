@@ -1,8 +1,9 @@
 # frontend-pages
 
 One folder per route under `client/src/pages/` — the top-level screen components wired up
-in `client/src/routes/AppRoutes.tsx`. Each page owns its own data fetching (via
-`client/src/api/*.api.ts`), local UI state, and a colocated `<PageName>.css`.
+in `client/src/routes/AppRoutes.tsx`. Each page's GET data comes from a cached query hook
+in `client/src/hooks/queries/` (one file per domain, wrapping `client/src/api/*.api.ts` —
+see `frontend-caching`), plus its own local UI state and a colocated `<PageName>.css`.
 
 ## Folder inventory
 
@@ -30,11 +31,13 @@ in `client/src/routes/AppRoutes.tsx`. Each page owns its own data fetching (via
 
 ## The shared pattern
 
-Every list/detail page follows the same shape: `isLoading` state shows a `Loader`, a
-caught error (via `apiErrorMessage` from `client/src/api/axiosInstance.ts`) shows an inline
-error string, an empty result shows `EmptyState` (with a call-to-action where one makes
-sense), and only then does the real content render. Pages don't use React Query or SWR —
-just `useState`/`useEffect`/`useCallback` calling the api modules directly.
+Every list/detail page follows the same shape: a query hook's `isLoading` shows a
+`Loader` (true only on a genuine first fetch — a cached revisit or a background
+revalidation never re-shows it, see `frontend-caching`), `isError`/`error` (run through
+`apiErrorMessage`) shows an inline error string, an empty result shows `EmptyState` (with a
+call-to-action where one makes sense), and only then does the real content render. Local
+UI state (modals, form drafts, filters/search/page number fed into the query hook as
+params) still uses plain `useState`; only the GET itself goes through a query hook.
 
 ## Non-obvious things
 
