@@ -1,4 +1,4 @@
-# MedScan AI — Backend Rebuild Contracts (source of truth)
+# Medo AI — Backend Rebuild Contracts (source of truth)
 
 This document is the single source of truth for the FastAPI rebuild of `server/` and the
 corresponding updates to the existing `client/`. Every agent/human working on either side

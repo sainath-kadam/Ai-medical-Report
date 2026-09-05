@@ -53,6 +53,7 @@ from app.services.audit_service import AuditService
 from app.services.notification_service import NotificationService
 from app.storage import get_storage
 from app.utils.ids import to_public
+from app.utils.media_conversion import dicom_to_png_bytes, extract_video_frames
 
 logger = get_logger(__name__)
 
@@ -73,15 +74,37 @@ async def load_study_images(files: list[dict[str, Any]]) -> list[tuple[bytes, st
     MAX_ANALYSIS_IMAGES) as (bytes, mime_type) pairs for `StudyContext.images`. Shared by
     `AnalysisService.run_analysis` and `ReportService.apply_change_request` so both analysis
     paths see the same set of images — including anything uploaded after the first run.
-    Non-image files (video, raw DICOM) are skipped; if a study has none that qualify, the
-    first file is still sent so the provider can report it as unanalyzable itself."""
+
+    Raw DICOM is windowed and converted to PNG (middle frame, for multi-frame series);
+    video is sampled down to a handful of representative frames as JPEG — both via
+    `app.utils.media_conversion`, which fails soft (None/[]) rather than raising, so one
+    unreadable file just doesn't contribute rather than failing the whole study. If nothing
+    on the study converts to a usable image, the first file's raw bytes are still sent so
+    the provider can report it as unanalyzable itself."""
     storage = get_storage()
-    image_files = [f for f in files if (f.get("mimeType") or "").startswith("image/")]
-    if not image_files and files:
-        image_files = files[:1]
     images: list[tuple[bytes, str]] = []
-    for file in image_files[:MAX_ANALYSIS_IMAGES]:
-        images.append((await storage.download(file["storageKey"]), file.get("mimeType") or "application/octet-stream"))
+    first_file: tuple[bytes, str] | None = None
+
+    for file in files:
+        if len(images) >= MAX_ANALYSIS_IMAGES:
+            break
+        mime_type = file.get("mimeType") or "application/octet-stream"
+        raw = await storage.download(file["storageKey"])
+        if first_file is None:
+            first_file = (raw, mime_type)
+
+        if mime_type.startswith("image/"):
+            images.append((raw, mime_type))
+        elif mime_type.startswith("application/dicom") or (file.get("fileName") or "").lower().endswith(".dcm"):
+            png = dicom_to_png_bytes(raw)
+            if png is not None:
+                images.append((png, "image/png"))
+        elif mime_type.startswith("video/"):
+            frames = extract_video_frames(raw, MAX_ANALYSIS_IMAGES - len(images))
+            images.extend((frame, "image/jpeg") for frame in frames)
+
+    if not images and first_file is not None:
+        images.append(first_file)
     return images
 
 # Mirrors the tier->model mapping `AnthropicImagingProvider`/`AnthropicReportProvider` use
@@ -393,6 +416,9 @@ class AnalysisService:
                 {
                     "status": "failed",
                     "error": str(exc),
+                    # Lets the frontend recognize AI_QUOTA_EXCEEDED/AI_RATE_LIMITED/etc. and
+                    # show a specific "limit reached" notice instead of parsing the message.
+                    "errorCode": getattr(exc, "code", None),
                     "completedAt": datetime.now(timezone.utc).isoformat(),
                 },
             )

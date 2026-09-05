@@ -108,7 +108,7 @@ export default function Settings() {
 
       <Card className="settings-page__card">
         <h3>Appearance</h3>
-        <p className="settings-page__hint">Choose how MedScan AI looks on this device.</p>
+        <p className="settings-page__hint">Choose how Medo AI looks on this device.</p>
 
         <div className="settings-page__theme-row">
           <div className="settings-page__theme-info">

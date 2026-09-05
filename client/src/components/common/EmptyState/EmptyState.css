@@ -7,10 +7,20 @@
   color: var(--color-text-secondary);
 }
 
+/* A soft gradient disc behind the icon -- turns a plain glyph into a small focal point,
+   the way most modern empty-state illustrations use a tinted circle rather than a bare
+   icon floating on the page background. */
 .empty-state__icon {
-  font-size: 2.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-primary) 14%, transparent), transparent 72%);
+  font-size: 2rem;
   color: var(--color-text-muted);
-  margin-bottom: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
 .empty-state__title {

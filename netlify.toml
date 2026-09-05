@@ -27,7 +27,7 @@
 #    >>> medscan-api.onrender.com (the same host you put in VITE_API_URL). <<<
 [[redirects]]
   from   = "/api/*"
-  to     = "https://REPLACE-WITH-YOUR-RENDER-SERVICE.onrender.com/api/:splat"
+  to     = "https://ai-medical-report-ak4w.onrender.com/api/:splat"
   status = 200
   force  = true
 

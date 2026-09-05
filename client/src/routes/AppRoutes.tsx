@@ -47,7 +47,7 @@ function RootGate() {
   if (isLoading) {
     return (
       <div className="app-loading-screen">
-        <Loader size="lg" label="Loading MedScan AI…" />
+        <Loader size="lg" label="Loading Medo AI…" />
       </div>
     );
   }

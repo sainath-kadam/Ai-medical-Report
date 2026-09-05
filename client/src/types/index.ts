@@ -150,6 +150,7 @@ export interface AnalysisJob {
   imagingModel?: string;
   reportModel?: string;
   error?: string;
+  errorCode?: string;
   startedAt?: string;
   completedAt?: string;
   createdAt: string;

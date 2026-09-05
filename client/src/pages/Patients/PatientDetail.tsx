@@ -1,9 +1,12 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { FiArrowLeft, FiCalendar, FiEdit2, FiEye, FiFileText, FiHash, FiMail, FiPhone, FiPlus, FiTrash2, FiUser } from 'react-icons/fi';
 import { patientApi } from '../../api/patient.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
-import { Patient, Sex, Study } from '../../types';
+import { usePatient, usePatientStudies } from '../../hooks/queries/usePatients';
+import { queryKeys } from '../../lib/queryKeys';
+import { Sex, Study } from '../../types';
 import Card from '../../components/common/Card/Card';
 import Button from '../../components/common/Button/Button';
 import Modal from '../../components/common/Modal/Modal';
@@ -30,54 +33,28 @@ export default function PatientDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { showToast } = useToast();
+  const queryClient = useQueryClient();
 
   // RBAC (CONTRACTS.md §3): org_admin/doctor can all edit+delete patients.
   const canDelete = user?.role === 'org_admin' || user?.role === 'doctor';
 
-  const [patient, setPatient] = useState<Patient | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  const [studies, setStudies] = useState<Study[]>([]);
-  const [studiesLoading, setStudiesLoading] = useState(true);
-  const [studiesError, setStudiesError] = useState('');
+  // Same cache entry the Patients list's row navigation and StudyDetail's patient
+  // fallback read (queryKeys.patients.detail) -- arriving here from either place, or
+  // coming back to it, often costs zero network requests.
+  const { data: patient, isLoading, isError, error } = usePatient(id);
+  const { data: studies = [], isLoading: studiesLoading, isError: studiesIsError, error: studiesErrorObj } = usePatientStudies(id);
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [formError, setFormError] = useState('');
-
-  const loadPatient = useCallback(() => {
-    if (!id) return;
-    setIsLoading(true);
-    setError('');
-    patientApi
-      .getById(id)
-      .then(setPatient)
-      .catch((err) => setError(apiErrorMessage(err)))
-      .finally(() => setIsLoading(false));
-  }, [id]);
-
-  const loadStudies = useCallback(() => {
-    if (!id) return;
-    setStudiesLoading(true);
-    setStudiesError('');
-    patientApi
-      .getStudies(id)
-      .then(setStudies)
-      .catch((err) => setStudiesError(apiErrorMessage(err)))
-      .finally(() => setStudiesLoading(false));
-  }, [id]);
-
-  useEffect(() => {
-    loadPatient();
-    loadStudies();
-  }, [loadPatient, loadStudies]);
+  const [deleteError, setDeleteError] = useState('');
 
   async function handleUpdate(values: PatientFormValues) {
     if (!patient) return;
     setFormError('');
     try {
       const updated = await patientApi.update(patient.id, patientFormToPayload(values));
-      setPatient(updated);
+      queryClient.setQueryData(queryKeys.patients.detail(patient.id), updated);
+      queryClient.invalidateQueries({ queryKey: queryKeys.patients.all });
       setIsEditOpen(false);
       showToast('Patient updated', 'success');
     } catch (err) {
@@ -90,10 +67,11 @@ export default function PatientDetail() {
     if (!confirm(`Delete patient ${patient.name}? This cannot be undone.`)) return;
     try {
       await patientApi.remove(patient.id);
+      queryClient.invalidateQueries({ queryKey: queryKeys.patients.all });
       showToast('Patient deleted', 'success');
       navigate('/patients');
     } catch (err) {
-      setError(apiErrorMessage(err));
+      setDeleteError(apiErrorMessage(err));
     }
   }
 
@@ -131,13 +109,13 @@ export default function PatientDetail() {
     );
   }
 
-  if (error || !patient) {
+  if (isError || !patient) {
     return (
       <div className="patient-detail">
         <button type="button" className="patient-detail__back" onClick={() => navigate('/patients')}>
           <FiArrowLeft size={15} /> Back to patients
         </button>
-        <EmptyState title="Couldn't load this patient" description={error || 'Patient not found.'} />
+        <EmptyState title="Couldn't load this patient" description={isError ? apiErrorMessage(error) : 'Patient not found.'} />
       </div>
     );
   }
@@ -173,6 +151,8 @@ export default function PatientDetail() {
           )}
         </div>
       </div>
+
+      {deleteError && <div className="patient-detail__error">{deleteError}</div>}
 
       <Card className="patient-detail__info">
         <div className="patient-detail__row">
@@ -221,7 +201,7 @@ export default function PatientDetail() {
         </Link>
       </div>
 
-      {studiesError && <div className="patient-detail__error">{studiesError}</div>}
+      {studiesIsError && <div className="patient-detail__error">{apiErrorMessage(studiesErrorObj)}</div>}
 
       {studiesLoading ? (
         <div className="patient-detail__loading">

@@ -1,4 +1,4 @@
-# MedScan AI
+# Medo AI
 
 A multi-tenant medical imaging AI reporting platform: doctors and clinical staff upload
 medical images (X-ray/CT/MRI/ultrasound), get an AI-drafted preliminary structured report,

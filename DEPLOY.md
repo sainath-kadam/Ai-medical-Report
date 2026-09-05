@@ -1,4 +1,4 @@
-# Deploying MedScan AI — frontend on Netlify, backend on Render
+# Deploying Medo AI — frontend on Netlify, backend on Render
 
 The frontend is a static Vite bundle (`client/dist`); the backend is one FastAPI process
 (built from `server/Dockerfile`) plus PostgreSQL. Three files drive the deploy:

@@ -35,9 +35,9 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
           <FiMenu size={22} />
         </button>
         <NavLink to="/dashboard" className="topbar__brand">
-          <span className="topbar__brand-mark">MS</span>
+          <img src="/LogoMedicalAI2.jpg" alt="" className="topbar__brand-mark" />
           <span className="topbar__brand-name">
-            MedScan <strong>AI</strong>
+            Medo <strong>AI</strong>
           </span>
         </NavLink>
       </div>

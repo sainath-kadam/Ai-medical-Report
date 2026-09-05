@@ -1,8 +1,23 @@
 .landing {
+  position: relative;
   min-height: 100vh;
   background: var(--color-bg);
   color: var(--color-text-primary);
   overflow-x: hidden;
+}
+
+/* A very faint film-grain texture over the entire page -- the quiet "editorial" finish
+   a lot of premium marketing sites use so large flat gradient areas don't look sterile.
+   Fixed + non-interactive; an inline SVG data URI so no extra asset/network request. */
+.landing::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0.025;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 }
 
 /* ---- Shared buttons (bespoke to this page — bigger, gradient-capable CTAs distinct
@@ -49,22 +64,37 @@
 }
 
 /* ---- Nav ---- */
-.landing-nav {
+/* A floating glass "pill" bar inset from the viewport edges, not a full-bleed strip --
+   the nav language most current SaaS marketing sites (Linear, Raycast, Framer) use
+   instead of a flat top bar bonded to the browser chrome. */
+.landing-nav-wrap {
   position: sticky;
-  top: 0;
-  z-index: 10;
+  top: var(--space-3);
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  padding: 0 var(--space-4);
+}
+.landing-nav {
+  width: 100%;
+  max-width: 1120px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: var(--space-4) var(--space-6);
-  background: var(--color-bg);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid transparent;
-  transition: box-shadow var(--transition-base), border-color var(--transition-base);
+  gap: var(--space-3);
+  padding: 10px var(--space-5);
+  background: color-mix(in srgb, var(--color-surface) 72%, transparent);
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid color-mix(in srgb, var(--color-border) 70%, transparent);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow var(--transition-base), border-color var(--transition-base), background-color var(--transition-base);
 }
 .landing-nav--scrolled {
-  border-bottom-color: var(--color-border);
-  box-shadow: var(--shadow-sm);
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-lg);
+  background: color-mix(in srgb, var(--color-surface) 90%, transparent);
 }
 .landing-nav__brand {
   display: flex;
@@ -79,14 +109,10 @@
 .landing-nav__brand-mark {
   width: 34px;
   height: 34px;
+  min-width: 34px;
   border-radius: var(--radius-sm);
-  background: var(--color-primary);
-  color: var(--color-text-on-primary);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 800;
-  font-size: var(--font-size-sm);
+  object-fit: cover;
+  box-shadow: 0 3px 10px -2px color-mix(in srgb, var(--color-primary) 45%, transparent);
 }
 .landing-nav__actions {
   display: flex;
@@ -100,6 +126,18 @@
 }
 .landing-nav__login:hover {
   color: var(--color-primary);
+}
+
+@media (max-width: 560px) {
+  .landing-nav-wrap {
+    top: 0;
+    padding: 0;
+  }
+  .landing-nav {
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
 }
 
 /* ---- Hero ---- */
@@ -143,6 +181,50 @@
   background: var(--color-accent);
   animation: blob-drift-b 18s ease-in-out infinite;
 }
+.landing-hero__blob--c {
+  width: 280px;
+  height: 280px;
+  top: 30%;
+  left: 38%;
+  background: var(--color-primary-dark);
+  opacity: 0.14;
+  animation: blob-drift-b 22s ease-in-out infinite reverse;
+}
+
+/* A faint fixed dot grid across the hero -- the quiet "product/engineering" texture
+   used behind a lot of current SaaS hero sections, sitting under the blobs so it reads
+   as depth rather than a flat gradient. */
+.landing-hero__grid {
+  position: absolute;
+  inset: -10%;
+  background-image: radial-gradient(color-mix(in srgb, var(--color-text-primary) 14%, transparent) 1px, transparent 1px);
+  background-size: 28px 28px;
+  -webkit-mask-image: radial-gradient(circle at 50% 40%, black, transparent 75%);
+  mask-image: radial-gradient(circle at 50% 40%, black, transparent 75%);
+  opacity: 0.35;
+}
+
+/* Cursor-follow spotlight -- a soft light that trails the pointer across the hero,
+   updated via --spot-x/--spot-y (set on mousemove in Landing.tsx). Sits above the blobs,
+   below the actual content (z-index -1, same stacking context as the rest of the hero
+   background layer), and never affects layout -- pure decoration. */
+.landing-hero__spotlight {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(
+    360px circle at var(--spot-x, 50%) var(--spot-y, 20%),
+    color-mix(in srgb, var(--color-primary) 10%, transparent),
+    transparent 70%
+  );
+  opacity: 0;
+  transition: opacity 300ms ease;
+}
+.landing-hero:hover .landing-hero__spotlight {
+  opacity: 1;
+}
+
 @keyframes blob-drift-a {
   0%, 100% {
     transform: translate(0, 0) scale(1);
@@ -161,15 +243,30 @@
 }
 
 .landing-hero__eyebrow {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   background: var(--color-primary-light);
   color: var(--color-primary-dark);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 25%, transparent);
   border-radius: var(--radius-pill);
   padding: 5px 14px;
   font-size: var(--font-size-xs);
   font-weight: 700;
   letter-spacing: 0.02em;
   margin-bottom: var(--space-4);
+}
+.landing-hero__eyebrow::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  animation: landing-eyebrow-pulse 1.8s ease-in-out infinite;
+}
+@keyframes landing-eyebrow-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.7); }
 }
 
 .landing-hero__text h1 {
@@ -178,8 +275,26 @@
   color: var(--color-text-primary);
   margin-bottom: var(--space-4);
 }
+/* An animated gradient sweep on the headline's key phrase -- the "shine" treatment
+   common to hero headlines on current AI-product marketing pages. */
 .landing-hero__accent {
-  color: var(--color-primary);
+  background: linear-gradient(90deg, var(--color-primary), var(--color-accent), var(--color-primary));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: accent-shine 5s linear infinite;
+}
+@keyframes accent-shine {
+  to {
+    background-position: -200% center;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero__accent,
+  .landing-hero__eyebrow::before {
+    animation: none;
+  }
 }
 
 .landing-hero__text p {
@@ -552,28 +667,52 @@
 }
 
 .landing-feature-card__inner {
+  position: relative;
   height: 100%;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
   padding: var(--space-5);
-  transition: transform var(--transition-base), box-shadow var(--transition-base);
+  overflow: hidden;
+  transition: transform var(--transition-base), box-shadow var(--transition-base), border-color var(--transition-base);
+}
+/* A soft gradient glow that fades in from the corner on hover -- sits behind the content
+   (z-index below h3/p/icon, which need their own stacking context via position) so it
+   reads as ambient light rather than an opaque wash. */
+.landing-feature-card__inner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(220px circle at 15% 0%, color-mix(in srgb, var(--color-primary) 12%, transparent), transparent 70%);
+  opacity: 0;
+  transition: opacity var(--transition-base);
 }
 .landing-feature-card__inner:hover {
   transform: translateY(-3px);
   box-shadow: var(--shadow-md);
+  border-color: color-mix(in srgb, var(--color-primary) 35%, var(--color-border));
+}
+.landing-feature-card__inner:hover::before {
+  opacity: 1;
+}
+.landing-feature-card__inner > * {
+  position: relative;
 }
 
 .landing-feature-card__icon {
   width: 42px;
   height: 42px;
   border-radius: var(--radius-md);
-  background: var(--color-primary-light);
+  background: linear-gradient(135deg, var(--color-primary-light), color-mix(in srgb, var(--color-primary) 18%, var(--color-primary-light)));
   color: var(--color-primary-dark);
   display: flex;
   align-items: center;
   justify-content: center;
   margin-bottom: var(--space-3);
+  transition: transform var(--transition-base);
+}
+.landing-feature-card__inner:hover .landing-feature-card__icon {
+  transform: scale(1.08) rotate(-4deg);
 }
 
 .landing-feature-card__inner h3 {
@@ -601,7 +740,7 @@
   left: 12%;
   right: 12%;
   height: 2px;
-  background: var(--color-border-strong);
+  background: linear-gradient(90deg, transparent, var(--color-border-strong) 15%, var(--color-border-strong) 85%, transparent);
   z-index: 0;
 }
 .landing-step__inner {
@@ -616,10 +755,15 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: var(--color-primary);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
   color: var(--color-text-on-primary);
   font-weight: 700;
   margin-bottom: var(--space-3);
+  box-shadow: 0 6px 16px -4px color-mix(in srgb, var(--color-primary) 45%, transparent);
+  transition: transform var(--transition-base);
+}
+.landing-step:hover .landing-step__number {
+  transform: scale(1.08);
 }
 .landing-step__inner h3 {
   font-size: var(--font-size-base);
@@ -632,39 +776,72 @@
 }
 
 /* ---- CTA band ---- */
+/* A big, bold gradient panel rather than plain text on the page background -- the
+   "final push" treatment most premium SaaS marketing pages give their last CTA. */
 .landing-cta {
   position: relative;
   text-align: center;
-  max-width: 720px;
-  margin: 0 auto;
+  max-width: 920px;
+  margin: var(--space-4) auto var(--space-7);
   padding: var(--space-7) var(--space-6);
   overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(135deg, var(--color-primary-dark), var(--color-primary) 55%, color-mix(in srgb, var(--color-accent) 70%, var(--color-primary)));
+  box-shadow: 0 24px 56px -20px color-mix(in srgb, var(--color-primary) 55%, transparent);
 }
 .landing-cta__blob {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 480px;
-  height: 240px;
+  width: 560px;
+  height: 280px;
   transform: translate(-50%, -50%);
-  background: radial-gradient(ellipse, var(--color-primary) 0%, transparent 70%);
-  opacity: 0.12;
-  filter: blur(40px);
-  z-index: -1;
+  background: radial-gradient(ellipse, rgba(255, 255, 255, 0.25) 0%, transparent 70%);
+  opacity: 0.6;
+  filter: blur(50px);
+  z-index: 0;
   pointer-events: none;
 }
+/* A faint grid texture, matching the hero, so the CTA panel feels like part of the same
+   visual system rather than a one-off colored box. */
+.landing-cta::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.14) 1px, transparent 1px);
+  background-size: 22px 22px;
+  -webkit-mask-image: radial-gradient(circle at 50% 30%, black, transparent 75%);
+  mask-image: radial-gradient(circle at 50% 30%, black, transparent 75%);
+}
+.landing-cta > * {
+  position: relative;
+  z-index: 1;
+}
 .landing-cta h2 {
-  font-size: clamp(1.4rem, 2.4vw, 1.9rem);
+  font-size: clamp(1.5rem, 2.8vw, 2.1rem);
   margin-bottom: var(--space-2);
-  color: var(--color-text-primary);
+  color: #fff;
 }
 .landing-cta p {
-  color: var(--color-text-secondary);
+  color: rgba(255, 255, 255, 0.85);
   margin-bottom: var(--space-5);
+}
+/* The primary button reads on a colored panel here, not the page background -- swap to
+   a solid light pill so it still pops, scoped to this section only. */
+.landing-cta .landing-btn--primary {
+  background: #fff;
+  color: var(--color-primary-dark);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+.landing-cta .landing-btn--primary:hover {
+  background: #fff;
+  filter: brightness(0.97);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.22);
 }
 
 /* ---- Footer ---- */
 .landing-footer {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -673,16 +850,16 @@
   padding: var(--space-5) var(--space-6);
   border-top: 1px solid var(--color-border);
 }
-.landing-footer__links {
-  display: flex;
-  gap: var(--space-4);
-  font-size: var(--font-size-sm);
-}
-.landing-footer__links a {
-  color: var(--color-text-secondary);
-}
-.landing-footer__links a:hover {
-  color: var(--color-primary);
+/* A gradient hairline instead of a flat border -- echoes the accent used throughout the
+   rest of the page instead of ending on a plain gray rule. */
+.landing-footer::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-primary) 40%, transparent), transparent);
 }
 .landing-footer__copyright {
   font-size: var(--font-size-sm);

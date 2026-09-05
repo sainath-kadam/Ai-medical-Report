@@ -6,7 +6,7 @@ import Button from '../../common/Button/Button';
 import { useAuth } from '../../../hooks/useAuth';
 import { REPORT_STATUS_META } from '../../../utils/statusMeta';
 import { MODALITY_LABELS } from '../../../utils/studyMeta';
-import { formatDate, formatDateTime } from '../../../utils/formatDate';
+import { formatDate } from '../../../utils/formatDate';
 import './ReportViewer.css';
 
 interface ReportViewerProps {
@@ -167,7 +167,7 @@ export default function ReportViewer({ report, selectedVersion, onSelectVersion,
 
   return (
     <div
-      className="report-viewer"
+      className={`report-viewer ${isEditing ? 'report-viewer--editing' : ''}`}
       style={
         {
           '--report-accent': accent,
@@ -195,7 +195,7 @@ export default function ReportViewer({ report, selectedVersion, onSelectVersion,
             inside the report document itself (below) or its PDF export. */}
         <StatusBadge label={meta.label} tone={meta.tone} />
         {editable && isCurrentVersion && !isEditing && (
-          <Button size="sm" variant="outline" icon={<FiEdit2 size={14} />} onClick={handleStartEdit}>
+          <Button size="sm" className="report-viewer__cta" icon={<FiEdit2 size={14} />} onClick={handleStartEdit}>
             Edit report
           </Button>
         )}
@@ -207,6 +207,7 @@ export default function ReportViewer({ report, selectedVersion, onSelectVersion,
         {isEditing && (
           <div className="report-viewer__editing-controls">
             <span className="report-viewer__editing-hint">Editing — click into any section of the report to change its text</span>
+            {saveError && <p className="report-viewer__save-error">{saveError}</p>}
             <Button size="sm" variant="outline" icon={<FiX size={14} />} onClick={handleCancelEdit} disabled={isSaving}>
               Cancel
             </Button>
@@ -218,7 +219,7 @@ export default function ReportViewer({ report, selectedVersion, onSelectVersion,
       </div>
 
       <div className="report-viewer__page-wrap">
-        <article className="report-viewer__page">
+        <article key={selectedVersion} className="report-viewer__page">
           <header className="report-viewer__header">
             <div>
               <p className="report-viewer__org">{template?.header.organizationName || 'Medical Imaging Report'}</p>
@@ -250,31 +251,26 @@ export default function ReportViewer({ report, selectedVersion, onSelectVersion,
           )}
 
           {study && (
+            // Flat dt/dd sequence (no wrapping <div> per pair) so the CSS grid in
+            // ReportViewer.css can size the label columns once, shared across all three
+            // rows -- see that file's comment on .report-viewer__idblock for why a
+            // per-row flex layout (the previous markup) let a long label like "Referring
+            // Physician :" push its value further right than a short one like "Patient
+            // Name :", misaligning every row even though the printed PDF (a real table
+            // with fixed column widths, server/app/services/pdf_service.py) never did.
             <dl className="report-viewer__idblock">
-              <div>
-                <dt>Patient Name :</dt>
-                <dd>{patient?.name || 'Unknown'}</dd>
-              </div>
-              <div>
-                <dt>Patient ID :</dt>
-                <dd>{patient?.mrn || '—'}</dd>
-              </div>
-              <div>
-                <dt>Age / Sex :</dt>
-                <dd>{ageSex}</dd>
-              </div>
-              <div>
-                <dt>Date of Study :</dt>
-                <dd>{formatDate(study.studyDate)}</dd>
-              </div>
-              <div>
-                <dt>Referring Physician :</dt>
-                <dd>{study.referringPhysician || '—'}</dd>
-              </div>
-              <div>
-                <dt>Accession No. :</dt>
-                <dd>{accession}</dd>
-              </div>
+              <dt>Patient Name :</dt>
+              <dd>{patient?.name || 'Unknown'}</dd>
+              <dt>Patient ID :</dt>
+              <dd>{patient?.mrn || '—'}</dd>
+              <dt>Age / Sex :</dt>
+              <dd>{ageSex}</dd>
+              <dt>Date of Study :</dt>
+              <dd>{formatDate(study.studyDate)}</dd>
+              <dt>Referring Physician :</dt>
+              <dd>{study.referringPhysician || '—'}</dd>
+              <dt>Accession No. :</dt>
+              <dd>{accession}</dd>
             </dl>
           )}
 
@@ -377,27 +373,12 @@ export default function ReportViewer({ report, selectedVersion, onSelectVersion,
           </div>
 
           <footer className="report-viewer__footer">
-            <span>Generated {formatDateTime(version.generatedAt)}</span>
             {template?.footer.disclaimer && <p>{template.footer.disclaimer}</p>}
             {template?.footer.text && <p>{template.footer.text}</p>}
-            <p className="report-viewer__footer-id">
-              Report {report.id} (version {version.versionNumber})
-            </p>
           </footer>
         </article>
       </div>
 
-      {isEditing && draft && (
-        <div className="report-viewer__edit-actions">
-          {saveError && <p className="report-viewer__save-error">{saveError}</p>}
-          <Button variant="outline" icon={<FiX size={15} />} onClick={handleCancelEdit} disabled={isSaving}>
-            Cancel
-          </Button>
-          <Button icon={<FiSave size={15} />} onClick={handleSaveEdit} isLoading={isSaving}>
-            Save changes
-          </Button>
-        </div>
-      )}
     </div>
   );
 }

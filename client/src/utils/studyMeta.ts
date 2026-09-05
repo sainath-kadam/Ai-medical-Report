@@ -3,7 +3,7 @@
 // that file covers the Reports feature's `ReportStatus`, this one covers Studies'
 // `StudyStatus` / `Modality` / `AnalysisJobStatus`. statusMeta.ts re-exports
 // STUDY_STATUS_META from here so callers that need both still have one import.
-import { AnalysisJobStatus, Modality, StudyStatus } from '../types';
+import { AnalysisJob, AnalysisJobStatus, Modality, StudyStatus } from '../types';
 
 type Tone = 'info' | 'warning' | 'success' | 'danger' | 'muted';
 
@@ -60,3 +60,23 @@ export const ANALYSIS_JOB_STATUS_META: Record<AnalysisJobStatus, { label: string
 
 // Per the task brief: stop polling once the job reaches any of these three statuses.
 export const TERMINAL_JOB_STATUSES: AnalysisJobStatus[] = ['completed', 'failed', 'ready_for_review'];
+
+// A failed job's `error` is the raw backend message (server/app/ai/.../_classify_error,
+// anthropic_provider.py) -- accurate, but written for someone debugging config, not the
+// doctor waiting on a report. `errorCode` lets us swap in a short, actionable line for the
+// cases doctors actually hit (provider quota/rate limit exhausted, or the model overloaded)
+// while still falling back to the raw message for anything less common.
+const ANALYSIS_JOB_ERROR_MESSAGES: Partial<Record<string, string>> = {
+  AI_QUOTA_EXCEEDED: "The AI service has reached its usage limit (quota exhausted). Please try again later, or contact your administrator about the plan.",
+  AI_RATE_LIMITED: 'The AI service is receiving too many requests right now. Please wait a moment and try again.',
+  AI_TEMPORARILY_UNAVAILABLE: 'The AI service is temporarily overloaded. Please try again in a minute.',
+  AI_NOT_CONFIGURED: "The AI service isn't configured correctly. Please contact your administrator.",
+  AI_MODEL_NOT_FOUND: "The AI service isn't configured correctly. Please contact your administrator.",
+};
+
+export function friendlyAnalysisJobError(job: Pick<AnalysisJob, 'error' | 'errorCode'>): string {
+  if (job.errorCode && ANALYSIS_JOB_ERROR_MESSAGES[job.errorCode]) {
+    return ANALYSIS_JOB_ERROR_MESSAGES[job.errorCode]!;
+  }
+  return job.error || 'The AI analysis failed. Please try again.';
+}

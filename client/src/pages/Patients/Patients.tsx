@@ -1,8 +1,11 @@
-import { useCallback, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { FiEdit2, FiPlus, FiSearch, FiTrash2, FiUsers } from 'react-icons/fi';
 import { patientApi } from '../../api/patient.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
+import { usePatientsList } from '../../hooks/queries/usePatients';
+import { queryKeys } from '../../lib/queryKeys';
 import { Patient, Sex } from '../../types';
 import Table, { TableColumn } from '../../components/ui/Table/Table';
 import Pagination from '../../components/ui/Pagination/Pagination';
@@ -30,24 +33,19 @@ export default function Patients() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // RBAC (CONTRACTS.md §3): org_admin/doctor can all create+edit+delete patients.
   const canDelete = user?.role === 'org_admin' || user?.role === 'doctor';
 
-  const [patients, setPatients] = useState<Patient[]>([]);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
-
   const [searchInput, setSearchInput] = useState('');
   const [search, setSearch] = useState('');
-
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
 
   const [modalMode, setModalMode] = useState<'create' | 'edit' | null>(null);
   const [activePatient, setActivePatient] = useState<Patient | null>(null);
   const [formError, setFormError] = useState('');
+  const [actionError, setActionError] = useState('');
 
   // Debounce free-text search so we don't fire a request on every keystroke.
   useEffect(() => {
@@ -58,23 +56,18 @@ export default function Patients() {
     return () => window.clearTimeout(handle);
   }, [searchInput]);
 
-  const load = useCallback(() => {
-    setIsLoading(true);
-    setError('');
-    patientApi
-      .list({ page, pageSize: PAGE_SIZE, search: search || undefined })
-      .then((data) => {
-        setPatients(data.items);
-        setTotalPages(data.totalPages);
-        setTotal(data.total);
-      })
-      .catch((err) => setError(apiErrorMessage(err)))
-      .finally(() => setIsLoading(false));
-  }, [page, search]);
+  // Cached per {page, pageSize, search} -- revisiting Patients with the same filters
+  // within the freshness window (see hooks/queries/usePatients.ts) reads straight from
+  // cache; a create/update/delete below invalidates the whole `patients` domain so the
+  // list (and any open patient detail page) picks up the change on its next render.
+  const { data, isLoading, isError, error, refetch } = usePatientsList({ page, pageSize: PAGE_SIZE, search: search || undefined });
+  const patients = data?.items ?? [];
+  const totalPages = data?.totalPages ?? 1;
+  const total = data?.total ?? 0;
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  function invalidatePatients() {
+    queryClient.invalidateQueries({ queryKey: queryKeys.patients.all });
+  }
 
   function openCreate() {
     setFormError('');
@@ -98,7 +91,7 @@ export default function Patients() {
       await patientApi.create(patientFormToPayload(values));
       closeModal();
       showToast('Patient created', 'success');
-      load();
+      invalidatePatients();
     } catch (err) {
       setFormError(apiErrorMessage(err));
     }
@@ -111,7 +104,7 @@ export default function Patients() {
       await patientApi.update(activePatient.id, patientFormToPayload(values));
       closeModal();
       showToast('Patient updated', 'success');
-      load();
+      invalidatePatients();
     } catch (err) {
       setFormError(apiErrorMessage(err));
     }
@@ -122,9 +115,9 @@ export default function Patients() {
     try {
       await patientApi.remove(patient.id);
       showToast('Patient deleted', 'success');
-      load();
+      invalidatePatients();
     } catch (err) {
-      setError(apiErrorMessage(err));
+      setActionError(apiErrorMessage(err));
     }
   }
 
@@ -157,6 +150,8 @@ export default function Patients() {
     },
   ];
 
+  const loadError = isError ? apiErrorMessage(error) : '';
+
   return (
     <div className="patients-page">
       <div className="patients-page__header">
@@ -177,19 +172,23 @@ export default function Patients() {
           onChange={(e) => setSearchInput(e.target.value)}
           aria-label="Search patients"
         />
-        {!isLoading && !error && (
+        {!isLoading && !loadError && (
           <span className="patients-page__count">
             {total} patient{total === 1 ? '' : 's'}
           </span>
         )}
       </div>
 
-      {error && <div className="patients-page__error">{error}</div>}
+      {(actionError || loadError) && <div className="patients-page__error">{actionError || loadError}</div>}
 
       {isLoading ? (
         <div className="patients-page__loading">
           <Loader size="lg" />
         </div>
+      ) : loadError ? (
+        <Button variant="outline" onClick={() => refetch()}>
+          Try again
+        </Button>
       ) : patients.length === 0 ? (
         <EmptyState
           icon={<FiUsers />}

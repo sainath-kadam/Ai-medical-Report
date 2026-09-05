@@ -62,18 +62,25 @@ const STEPS = [
 
 const SHOWCASE_ITEMS = [
   {
-    key: 'chat',
-    label: 'Conversational intake',
-    icon: FiMessageSquare,
-    img: '/landing/chat-intake.png',
-    caption: 'Start a study by chatting — patient details, scan info, and report format. No rigid multi-page forms.',
+    key: 'intake',
+    label: 'Guided intake',
+    icon: FiUpload,
+    img: '/landing/intake-form.png',
+    caption: 'One guided form for patient details, scan info, and the imaging file — no separate create/upload/analyze steps.',
   },
   {
-    key: 'study',
-    label: 'Study workspace',
-    icon: FiUpload,
-    img: '/landing/study-detail-full.png',
-    caption: 'Everything about one study in one place — clinical history, files, patient context, and one-click AI analysis.',
+    key: 'report',
+    label: 'AI-drafted report',
+    icon: FiCpu,
+    img: '/landing/ai-report-review.png',
+    caption: 'Review the AI’s structured draft right where it was generated — edit in place, ask the AI to revise, or finalize.',
+  },
+  {
+    key: 'document',
+    label: 'Finalized document',
+    icon: FiFileText,
+    img: '/landing/study-report.png',
+    caption: 'The finalized report, formatted exactly like the PDF a referring physician receives — versioned and locked.',
   },
   {
     key: 'patients',
@@ -81,6 +88,13 @@ const SHOWCASE_ITEMS = [
     icon: FiSearch,
     img: '/landing/patients-list.png',
     caption: 'Search and manage every patient record in your organization, scoped to your team only.',
+  },
+  {
+    key: 'dashboard',
+    label: 'Dashboard',
+    icon: FiActivity,
+    img: '/landing/dashboard.png',
+    caption: 'One place to see what needs review, what the AI is drafting, and what got finalized this week.',
   },
 ];
 
@@ -134,7 +148,7 @@ function ProductShowcase() {
           <span className="landing-showcase__dot landing-showcase__dot--red" />
           <span className="landing-showcase__dot landing-showcase__dot--yellow" />
           <span className="landing-showcase__dot landing-showcase__dot--green" />
-          <div className="landing-showcase__url">app.medscan.ai</div>
+          <div className="landing-showcase__url">app.medo.ai</div>
         </div>
         <div className="landing-showcase__image-wrap">
           {SHOWCASE_ITEMS.map((item, i) => (
@@ -155,6 +169,7 @@ function ProductShowcase() {
 
 export default function Landing() {
   const [isScrolled, setIsScrolled] = useState(false);
+  const heroRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
     function onScroll() {
@@ -164,50 +179,66 @@ export default function Landing() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
+  // A soft light that follows the cursor across the hero -- a subtle "spotlight" cue
+  // (CSS custom properties read by .landing-hero__spotlight's radial-gradient) rather
+  // than anything that moves layout or content.
+  function handleHeroMouseMove(event: MouseEvent<HTMLElement>) {
+    const el = heroRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    el.style.setProperty('--spot-x', `${((event.clientX - rect.left) / rect.width) * 100}%`);
+    el.style.setProperty('--spot-y', `${((event.clientY - rect.top) / rect.height) * 100}%`);
+  }
+
   return (
     <div className="landing">
-      <header className={`landing-nav ${isScrolled ? 'landing-nav--scrolled' : ''}`}>
-        <div className="landing-nav__brand">
-          <span className="landing-nav__brand-mark">MS</span>
-          <span>
-            MedScan <strong>AI</strong>
-          </span>
-        </div>
-        <div className="landing-nav__actions">
-          <ThemeToggle />
-          <Link to="/login" className="landing-nav__login">
-            Log in
-          </Link>
-          <Link to="/signup">
-            <button className="landing-btn landing-btn--primary landing-btn--sm">Start free trial</button>
-          </Link>
-        </div>
-      </header>
+      <div className="landing-nav-wrap">
+        <header className={`landing-nav ${isScrolled ? 'landing-nav--scrolled' : ''}`}>
+          <div className="landing-nav__brand">
+            <img src="/LogoMedicalAI2.jpg" alt="" className="landing-nav__brand-mark" />
+            <span>
+              Medo <strong>AI</strong>
+            </span>
+          </div>
+          <div className="landing-nav__actions">
+            <ThemeToggle />
+            <Link to="/login" className="landing-nav__login">
+              Log in
+            </Link>
+            <Link to="/signup">
+              <button className="landing-btn landing-btn--primary landing-btn--sm">Start free trial</button>
+            </Link>
+          </div>
+        </header>
+      </div>
 
-      <section className="landing-hero">
+      <section className="landing-hero" ref={heroRef} onMouseMove={handleHeroMouseMove}>
         <div className="landing-hero__blobs" aria-hidden="true">
           <span className="landing-hero__blob landing-hero__blob--a" />
           <span className="landing-hero__blob landing-hero__blob--b" />
+          <span className="landing-hero__blob landing-hero__blob--c" />
+          <span className="landing-hero__grid" />
         </div>
+        <div className="landing-hero__spotlight" aria-hidden="true" />
 
         <div className="landing-hero__text">
-          <span className="landing-hero__eyebrow">AI-assisted radiology reporting</span>
+          <span className="landing-hero__eyebrow">Intelligent Medical Imaging &amp; Reporting</span>
           <h1>
             From scan to structured report, <span className="landing-hero__accent">in seconds</span> — reviewed by a physician,
             always.
           </h1>
           <p>
-            MedScan AI drafts a structured, preliminary imaging report the moment a scan is uploaded — so your team spends
+            Medo AI drafts a structured, preliminary imaging report the moment a scan is uploaded — so your team spends
             time reviewing and finalizing, not starting from a blank page.
           </p>
+          {/* One primary CTA here, not two -- "Log in" already always visible in the nav
+              above (it's a sticky floating bar), so repeating it right below it read as
+              clutter rather than a real second choice. */}
           <div className="landing-hero__actions">
             <Link to="/signup">
               <button className="landing-btn landing-btn--primary landing-btn--lg">
                 Start your free trial <FiArrowRight size={16} />
               </button>
-            </Link>
-            <Link to="/login">
-              <button className="landing-btn landing-btn--outline landing-btn--lg">Log in</button>
             </Link>
           </div>
           <p className="landing-hero__trust">Free 3-day trial · No credit card required</p>
@@ -294,18 +325,17 @@ export default function Landing() {
         </Link>
       </Reveal>
 
+      {/* No Log in / Sign up links here -- both are already one click away from the
+          sticky nav at the top of the page and the CTA panel right above this footer,
+          so repeating them a third time was just noise. */}
       <footer className="landing-footer">
         <div className="landing-nav__brand">
-          <span className="landing-nav__brand-mark">MS</span>
+          <img src="/LogoMedicalAI2.jpg" alt="" className="landing-nav__brand-mark" />
           <span>
-            MedScan <strong>AI</strong>
+            Medo <strong>AI</strong>
           </span>
         </div>
-        <div className="landing-footer__links">
-          <Link to="/login">Log in</Link>
-          <Link to="/signup">Sign up</Link>
-        </div>
-        <span className="landing-footer__copyright">© {new Date().getFullYear()} MedScan AI</span>
+        <span className="landing-footer__copyright">© {new Date().getFullYear()} Medo AI</span>
       </footer>
     </div>
   );

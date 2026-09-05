@@ -127,6 +127,17 @@
   color: var(--color-primary);
 }
 
+.report-workspace__reference-list + .report-workspace__reference-list {
+  margin-top: var(--space-2);
+}
+
+.report-workspace__reference-list--scroll {
+  max-height: 96px;
+  overflow-y: auto;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+}
+
 @media (max-width: 900px) {
   .report-workspace {
     grid-template-columns: 1fr;

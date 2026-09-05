@@ -1,7 +1,10 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useState } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { FiPlus, FiUserCheck, FiUserX } from 'react-icons/fi';
 import { userApi } from '../../api/user.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
+import { useUsersList } from '../../hooks/queries/useUsers';
+import { queryKeys } from '../../lib/queryKeys';
 import { User, UserRole } from '../../types';
 import Table, { TableColumn } from '../../components/ui/Table/Table';
 import Pagination from '../../components/ui/Pagination/Pagination';
@@ -41,12 +44,14 @@ const EMPTY_INVITE: InviteFormState = { name: '', email: '', role: 'doctor' };
 
 export default function Users() {
   const { user: currentUser } = useAuth();
+  const queryClient = useQueryClient();
 
-  const [users, setUsers] = useState<User[]>([]);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [isLoading, setIsLoading] = useState(true);
-  const [loadError, setLoadError] = useState('');
+  const { data, isLoading, isError, error } = useUsersList({ page, pageSize: PAGE_SIZE });
+  const users = data?.items ?? [];
+  const totalPages = data?.totalPages ?? 1;
+  const loadError = isError ? apiErrorMessage(error) : '';
+
   const [actionError, setActionError] = useState('');
   const [busyUserId, setBusyUserId] = useState<string | null>(null);
 
@@ -57,24 +62,18 @@ export default function Users() {
 
   const [newCredentials, setNewCredentials] = useState<{ user: User; temporaryPassword: string } | null>(null);
 
-  function load(pageToLoad: number) {
-    setIsLoading(true);
-    setLoadError('');
-    userApi
-      .list({ page: pageToLoad, pageSize: PAGE_SIZE })
-      .then((data) => {
-        setUsers(data.items);
-        setPage(data.page);
-        setTotalPages(data.totalPages);
-      })
-      .catch((err) => setLoadError(apiErrorMessage(err)))
-      .finally(() => setIsLoading(false));
+  function invalidateUsers() {
+    queryClient.invalidateQueries({ queryKey: queryKeys.users.all });
   }
 
-  useEffect(() => {
-    load(1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Patches the one row that changed directly in the cached page, instead of
+  // invalidate-and-refetch -- the role/active toggles feel instant either way, but this
+  // avoids a network round trip for a change we already know the exact result of.
+  function patchUserInCache(updated: User) {
+    queryClient.setQueryData(queryKeys.users.list({ page, pageSize: PAGE_SIZE }), (old: typeof data) =>
+      old ? { ...old, items: old.items.map((u) => (u.id === updated.id ? updated : u)) } : old
+    );
+  }
 
   function openInvite() {
     setInviteForm(EMPTY_INVITE);
@@ -90,7 +89,8 @@ export default function Users() {
       const result = await userApi.create(inviteForm);
       setIsInviteOpen(false);
       setNewCredentials(result);
-      load(1);
+      setPage(1);
+      invalidateUsers();
     } catch (err) {
       setInviteError(apiErrorMessage(err));
     } finally {
@@ -104,7 +104,7 @@ export default function Users() {
     setBusyUserId(target.id);
     try {
       const updated = await userApi.update(target.id, { role });
-      setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+      patchUserInCache(updated);
     } catch (err) {
       setActionError(apiErrorMessage(err));
     } finally {
@@ -118,7 +118,7 @@ export default function Users() {
     setBusyUserId(target.id);
     try {
       const updated = await userApi.update(target.id, { isActive: target.isActive === false });
-      setUsers((prev) => prev.map((u) => (u.id === updated.id ? updated : u)));
+      patchUserInCache(updated);
     } catch (err) {
       setActionError(apiErrorMessage(err));
     } finally {
@@ -212,18 +212,16 @@ export default function Users() {
         </Button>
       </div>
 
-      {actionError && <div className="users-page__error">{actionError}</div>}
+      {(actionError || loadError) && <div className="users-page__error">{actionError || loadError}</div>}
 
       {isLoading ? (
         <div className="users-page__loading">
           <Loader size="lg" />
         </div>
-      ) : loadError ? (
-        <div className="users-page__error">{loadError}</div>
       ) : (
         <>
           <Table columns={columns} rows={users} rowKey={(u) => u.id} emptyMessage="No users yet — invite your team to get started" />
-          <Pagination page={page} totalPages={totalPages} onPageChange={load} />
+          <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
         </>
       )}
 

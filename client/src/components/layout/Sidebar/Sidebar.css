@@ -2,6 +2,8 @@
   position: fixed;
   inset: 0;
   background: var(--color-overlay);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--transition-base);
@@ -41,11 +43,21 @@
 }
 
 .sidebar__brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
   font-weight: 600;
   color: var(--color-text-primary);
 }
 .sidebar__brand strong {
   color: var(--color-primary);
+}
+.sidebar__brand-mark {
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  border-radius: var(--radius-sm);
+  object-fit: cover;
 }
 
 .sidebar__close {
@@ -89,12 +101,13 @@
   height: 38px;
   min-width: 38px;
   border-radius: 50%;
-  background: var(--color-primary);
+  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
   color: var(--color-text-on-primary);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
+  box-shadow: 0 3px 10px -2px color-mix(in srgb, var(--color-primary) 45%, transparent);
 }
 
 .sidebar__nav {
@@ -122,10 +135,15 @@
   align-items: center;
   gap: var(--space-3);
   padding: 11px var(--space-3);
+  /* A constant-width transparent left border reserves the accent rail's space on every
+     link so switching a link to active never shifts its text (only the border's color
+     changes, not its width). */
+  border-left: 3px solid transparent;
   border-radius: var(--radius-sm);
   color: var(--color-text-secondary);
   font-weight: 600;
   font-size: var(--font-size-base);
+  transition: background-color var(--transition-base), color var(--transition-base), border-color var(--transition-base);
 }
 .sidebar__link:hover {
   background: var(--color-surface-alt);
@@ -133,8 +151,9 @@
   color: var(--color-text-primary);
 }
 .sidebar__link--active {
-  background: var(--color-primary-light);
+  background: linear-gradient(135deg, var(--color-primary-light), color-mix(in srgb, var(--color-primary) 14%, var(--color-primary-light)));
   color: var(--color-primary-dark);
+  border-left-color: var(--color-primary);
 }
 
 .sidebar__logout {

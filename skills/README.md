@@ -40,6 +40,7 @@ check the exact wire shape before changing a route/schema.
 | Skill | Covers |
 |---|---|
 | `frontend-pages` | Route screens, the loading/error/empty/content pattern |
+| `frontend-caching` | The TanStack Query cache every page's GET goes through — key factories, staleTime per domain, invalidation after a mutation |
 | `frontend-routes` | Route table, `ProtectedRoute`/`RoleRoute` guards |
 | `frontend-api` | `*.api.ts` modules, `axiosInstance.ts`, `types/index.ts` |
 | `frontend-context` | `AuthContext`/`ThemeContext` + shared hooks |

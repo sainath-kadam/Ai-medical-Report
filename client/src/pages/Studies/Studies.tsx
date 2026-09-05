@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FiPlus } from 'react-icons/fi';
-import { studyApi } from '../../api/study.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
+import { useStudiesList } from '../../hooks/queries/useStudies';
 import { Modality, Study, StudyStatus } from '../../types';
 import { MODALITY_LABELS, MODALITY_OPTIONS, STUDY_STATUS_META, STUDY_STATUS_OPTIONS } from '../../utils/studyMeta';
 import { formatDate, formatRelative } from '../../utils/formatDate';
@@ -22,39 +22,22 @@ const MODALITY_FILTER_OPTIONS: SelectOption[] = [{ value: 'all', label: 'All mod
 export default function Studies() {
   const navigate = useNavigate();
 
-  const [studies, setStudies] = useState<Study[]>([]);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [total, setTotal] = useState(0);
-
   const [statusFilter, setStatusFilter] = useState<StudyStatus | 'all'>('all');
   const [modalityFilter, setModalityFilter] = useState<Modality | 'all'>('all');
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState('');
-
-  const load = useCallback(() => {
-    setIsLoading(true);
-    setError('');
-    studyApi
-      .list({
-        page,
-        pageSize: PAGE_SIZE,
-        status: statusFilter === 'all' ? undefined : statusFilter,
-        modality: modalityFilter === 'all' ? undefined : modalityFilter,
-      })
-      .then((data) => {
-        setStudies(data.items);
-        setTotalPages(data.totalPages);
-        setTotal(data.total);
-      })
-      .catch((err) => setError(apiErrorMessage(err)))
-      .finally(() => setIsLoading(false));
-  }, [page, statusFilter, modalityFilter]);
-
-  useEffect(() => {
-    load();
-  }, [load]);
+  // Cached per {page, status, modality} (see hooks/queries/useStudies.ts) -- navigating
+  // to a study and back with the same filters reads straight from cache.
+  const { data, isLoading, isError, error, refetch } = useStudiesList({
+    page,
+    pageSize: PAGE_SIZE,
+    status: statusFilter === 'all' ? undefined : statusFilter,
+    modality: modalityFilter === 'all' ? undefined : modalityFilter,
+  });
+  const studies = data?.items ?? [];
+  const totalPages = data?.totalPages ?? 1;
+  const total = data?.total ?? 0;
+  const loadError = isError ? apiErrorMessage(error) : '';
 
   function handleStatusChange(value: string) {
     setStatusFilter(value === 'all' ? 'all' : (value as StudyStatus));
@@ -118,10 +101,10 @@ export default function Studies() {
         />
       </div>
 
-      {error && (
+      {loadError && (
         <div className="studies-page__error">
-          {error}{' '}
-          <button className="studies-page__retry" onClick={load}>
+          {loadError}{' '}
+          <button className="studies-page__retry" onClick={() => refetch()}>
             Try again
           </button>
         </div>

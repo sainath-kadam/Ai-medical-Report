@@ -43,7 +43,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(
-    title="MedScan AI API",
+    title="Medo AI API",
     description=(
         "Medical imaging AI reporting platform API. AI-generated content is always "
         "preliminary decision-support and requires review/approval by a qualified "

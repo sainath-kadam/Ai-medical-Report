@@ -12,10 +12,13 @@ export const ThemeContext = createContext<ThemeContextValue | undefined>(undefin
 
 const STORAGE_KEY = 'medscan_theme';
 
+// Light is the default for every visitor regardless of OS/browser preference -- only an
+// explicit toggle (persisted below) switches someone to dark, rather than silently
+// following prefers-color-scheme the first time they land on the app.
 function getInitialTheme(): Theme {
   const stored = localStorage.getItem(STORAGE_KEY);
   if (stored === 'light' || stored === 'dark') return stored;
-  return window.matchMedia?.('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  return 'light';
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
