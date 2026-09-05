@@ -43,3 +43,8 @@ half of the wire contract described in `CONTRACTS.md`.
   updated resource — callers must poll `GET /analysis/jobs/{jobId}` (see
   `useAnalysisJobPolling` and `StudyDetail.tsx`) to find out when it's done, even though the
   backend runs both synchronously in-request with no real background worker.
+- **`Organization.access` is evaluated by the server, never derived client-side.**
+  `/auth/me`, `/organizations/me`, `/billing/status` and every `platform/*` response carry
+  `access: {writable, reason, source, endsAt}` (CONTRACTS.md §2c). `ReadOnlyBanner` (layout)
+  reads it from `AuthContext.organization`; `platform.api.ts` types the system_admin views
+  (`PlatformOrganization` adds `access`, `userCount`, `reportCount`, `accessNote`).

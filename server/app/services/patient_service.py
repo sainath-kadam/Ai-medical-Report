@@ -62,6 +62,13 @@ class PatientService:
         )
         return paginated(to_public_list(items), pagination.page, pagination.page_size, total)
 
+    async def _next_generated_mrn(self, organization_id: str, offset: int = 0) -> str:
+        """`MRN-` + zero-padded (patients in this org + 1 + offset). Sequential and readable
+        like a real hospital number, and unique per organization by virtue of the DB
+        constraint the caller retries against."""
+        _, total = await self.repo.list_scoped(organization_id, {}, sort=[("createdAt", -1)], skip=0, limit=1)
+        return f"MRN-{total + 1 + offset:06d}"
+
     async def create_patient(
         self,
         current_user: CurrentUser,
@@ -70,22 +77,34 @@ class PatientService:
         ip: str | None,
         user_agent: str | None,
     ) -> dict[str, Any]:
-        doc = {
-            "_id": new_id(),
-            "organizationId": current_user.organization_id,
-            "mrn": payload.mrn,
-            "name": payload.name,
-            "dateOfBirth": payload.date_of_birth.isoformat(),
-            "sex": payload.sex,
-            "contactPhone": payload.contact_phone,
-            "contactEmail": payload.contact_email,
-            "createdBy": current_user.id,
-        }
-        try:
-            created = await self.repo.insert(doc)
-        except IntegrityError as exc:
-            await self.db.rollback()
-            raise _mrn_conflict(payload.mrn) from exc
+        # No MRN supplied -> assign the next per-organization number (`MRN-000123`). The
+        # unique constraint on (organizationId, mrn) is the arbiter: if two patients are
+        # created at the same instant (or a hospital already used that number manually),
+        # the insert fails and we simply move to the next number — only a caller-supplied
+        # MRN that collides is reported back as a conflict.
+        supplied_mrn = (payload.mrn or "").strip() or None
+        attempt = 0
+        while True:
+            mrn = supplied_mrn or await self._next_generated_mrn(current_user.organization_id, offset=attempt)
+            doc = {
+                "_id": new_id(),
+                "organizationId": current_user.organization_id,
+                "mrn": mrn,
+                "name": payload.name,
+                "dateOfBirth": payload.date_of_birth.isoformat(),
+                "sex": payload.sex,
+                "contactPhone": payload.contact_phone,
+                "contactEmail": payload.contact_email,
+                "createdBy": current_user.id,
+            }
+            try:
+                created = await self.repo.insert(doc)
+                break
+            except IntegrityError as exc:
+                await self.db.rollback()
+                if supplied_mrn or attempt >= 5:
+                    raise _mrn_conflict(mrn) from exc
+                attempt += 1
 
         await self.audit.log(
             organization_id=current_user.organization_id,

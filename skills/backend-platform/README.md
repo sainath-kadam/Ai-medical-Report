@@ -7,10 +7,20 @@ that operates *across* organizations instead of within one.
 
 ## Key files
 
-- `api/platform/routes.py` — `POST /platform/organizations` and `POST
-  /platform/system-admins`, both gated by `require_roles("system_admin")`. Every route in
-  this file is system_admin-only.
+- `api/platform/routes.py` — every route is system_admin-only (`require_roles`). Onboarding:
+  `POST /platform/organizations`, `POST /platform/system-admins`. Management (CONTRACTS.md
+  §2c): `GET /platform/organizations` (paginated, `?search=`), `GET
+  /platform/organizations/{id}` (org + members), `PATCH /platform/organizations/{id}/access`
+  (grant/clear `accessEndsAt`, `isSuspended`, `accessNote`, `plan`), `GET
+  /platform/system-admins`.
 - `services/platform_service.py` — `PlatformService`:
+  - `list_organizations` / `get_organization` / `update_access` / `list_system_admins` — the
+    management half. Every org they return goes through `subscription.with_access(...,
+    include_platform_fields=True)`: the evaluated `access` plus the platform-only
+    `accessNote` (which org-facing responses strip). `update_access` audit-logs
+    `ORGANIZATION_ACCESS_UPDATED` against the target org; the note is never in metadata.
+  - `OrganizationRepository.list_all` / `usage_counts` (two grouped counts, not 2xN queries)
+    and `UserRepository.list_by_role` exist only for these.
   - `create_organization(payload, actor_user_id)` — creates a new `Organization` AND its
     first `org_admin` user in one call, by reusing `AuthService.provision_org_and_admin_user`
     (the exact same org+admin-user+default-report-template provisioning `POST /auth/signup`
@@ -43,7 +53,8 @@ that operates *across* organizations instead of within one.
   users domain either — `POST /users`/`PATCH /users/{id}` type `role` as `InvitableRole`
   (`org_admin`/`doctor` only), so attempting it is a 422 at the schema level, not just an
   RBAC check that could be misconfigured.
-- **There is currently no route to list or manage existing organizations** — only to create
-  new ones. This is a deliberate v1 scope limit per CONTRACTS.md §2b, not an oversight; don't
-  assume a missing `GET /platform/organizations` is a bug to fix without checking with
-  whoever's driving the roadmap.
+- **Suspension is a flag, not a `subscriptionStatus` value** (`organizations.isSuspended`),
+  so lifting it restores whatever trial/Stripe/granted state applies with nothing to
+  "remember". The read-only enforcement itself lives in `app/core/subscription.py`, not
+  here — this domain only writes the fields that evaluator reads. Tests:
+  `tests/test_organization_access.py`.

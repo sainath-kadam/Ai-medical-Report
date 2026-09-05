@@ -39,6 +39,7 @@ export const NAV_ITEMS: NavItem[] = [
   // Profile/Log out (account-level actions), not the primary workflow nav. The route
   // itself (`/settings`) still exists — see AppRoutes.tsx.
   { to: '/platform/organizations', label: 'Organizations', icon: FiGlobe, roles: ['system_admin'] },
+  { to: '/platform/admins', label: 'Platform admins', icon: FiShield, roles: ['system_admin'] },
 ];
 
 export function navItemsForRole(role?: UserRole): NavItem[] {

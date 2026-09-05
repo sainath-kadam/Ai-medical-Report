@@ -7,12 +7,12 @@
 }
 
 .create-org-page__header h1 {
-  font-size: 1.5rem;
+  font-size: var(--font-size-2xl);
   color: var(--color-text-primary);
 }
 .create-org-page__header p {
   color: var(--color-text-secondary);
-  font-size: 0.92rem;
+  font-size: var(--font-size-base);
   margin-top: var(--space-1);
 }
 
@@ -35,7 +35,7 @@
 }
 
 .create-org-page__result-summary {
-  font-size: 0.9rem;
+  font-size: var(--font-size-base);
   color: var(--color-text-secondary);
 }
 
@@ -44,5 +44,17 @@
   color: var(--color-danger);
   padding: var(--space-3);
   border-radius: var(--radius-sm);
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
+}
+
+.create-org-page__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  align-self: flex-start;
+}
+.create-org-page__back:hover {
+  color: var(--color-primary);
 }

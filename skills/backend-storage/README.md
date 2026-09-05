@@ -30,12 +30,33 @@ app talks to the filesystem/S3/Firebase SDK directly.
   live Firebase project** — written to match the documented SDK surface, but never actually
   exercised against a real project/service-account during development. Treat with a bit
   more suspicion than the other two providers if something looks wrong.
+- `cloudinary.py` — `CloudinaryStorageProvider` (`STORAGE_PROVIDER=cloudinary`; creds via
+  `CLOUDINARY_URL` or the three `CLOUDINARY_*` vars). Every file is a `raw` +
+  `authenticated` asset: `raw` so our own `category/uuid.ext` key is the public_id verbatim
+  for every file type, `authenticated` so Cloudinary refuses to serve it without a signed
+  URL. `generate_signed_url` returns the same-origin `/api/v1/uploads/file/...` route (like
+  `local.py`), and `download` fetches a server-side signed delivery URL — bytes are proxied
+  through the API, never cached on Cloudinary's public CDN. The sync SDK runs via
+  `anyio.to_thread.run_sync`. Unverified against a live Cloudinary account (same caveat as
+  Firebase).
+- `fallback.py` — `FallbackStorageProvider`, returned by `get_storage()` whenever
+  `STORAGE_FALLBACK_PROVIDER` is set to a different provider than `STORAGE_PROVIDER`.
+  Uploads go to the primary; if the primary is unusable (not configured → logged once at
+  startup, or the upload raises) they land in the fallback instead. `download` tries the
+  primary then the fallback (remembering fallback-held keys in-process as an optimisation).
+  Only a primary *404* plus a fallback miss becomes `FILE_NOT_FOUND`; if the primary was
+  unreachable (DNS/network/5xx — seen live when Docker's resolver dropped api.cloudinary.com)
+  and the fallback misses, the primary's own `STORAGE_DOWNLOAD_FAILED` is raised instead, so
+  nobody hunts for a "lost" upload that is sitting in Cloudinary (`tests/test_storage_fallback.py`);
+  `delete` hits both; signed URLs are the same-origin route so links resolve through the
+  wrapper regardless of which backend holds the bytes.
 
 ## Non-obvious things
 
 - **Swapping providers is a pure env-var change** — `get_storage()` is the single choke
-  point every caller goes through, so `STORAGE_PROVIDER=local|s3|s3_compatible|firebase`
-  is the entire migration, no code changes required anywhere else.
+  point every caller goes through, so `STORAGE_PROVIDER=local|cloudinary|firebase|s3|
+  s3_compatible` is the entire migration, no code changes required anywhere else. Add
+  `STORAGE_FALLBACK_PROVIDER` for a second backend that catches what the first can't take.
 - **Files are never publicly accessible, by design** — there is no static file mount
   anywhere in the app. Every read goes through `generate_signed_url` (short-lived) or a
   backend-mediated download route. If you're tempted to add a static mount for convenience,

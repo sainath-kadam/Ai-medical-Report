@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import Topbar from '../Topbar/Topbar';
 import Sidebar from '../Sidebar/Sidebar';
+import ReadOnlyBanner from '../ReadOnlyBanner/ReadOnlyBanner';
 import './DashboardLayout.css';
 
 /** Page shell for every authenticated route: top navigation on desktop
@@ -16,6 +17,7 @@ export default function DashboardLayout() {
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       <main className="dashboard-layout__content">
         <div className="dashboard-layout__inner">
+          <ReadOnlyBanner />
           <Outlet />
         </div>
       </main>

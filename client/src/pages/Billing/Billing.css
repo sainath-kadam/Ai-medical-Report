@@ -12,12 +12,12 @@
 }
 
 .billing-page__header h1 {
-  font-size: 1.5rem;
+  font-size: var(--font-size-2xl);
   color: var(--color-text-primary);
 }
 .billing-page__header p {
   color: var(--color-text-secondary);
-  font-size: 0.92rem;
+  font-size: var(--font-size-base);
   margin-top: var(--space-1);
 }
 
@@ -26,7 +26,7 @@
   color: var(--color-danger);
   padding: var(--space-3);
   border-radius: var(--radius-sm);
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
 }
 
 .billing-page__status-card {
@@ -42,7 +42,7 @@
   gap: var(--space-3);
 }
 .billing-page__status-label {
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
 }
 
@@ -54,7 +54,7 @@
   gap: var(--space-2);
   padding: var(--space-3);
   border-radius: var(--radius-sm);
-  font-size: 0.88rem;
+  font-size: var(--font-size-sm);
   width: 100%;
 }
 .billing-page__active-note {
@@ -71,6 +71,6 @@
 }
 
 .billing-page__not-configured {
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }

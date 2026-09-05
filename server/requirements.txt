@@ -29,6 +29,7 @@ stripe==11.3.0
 # --- Object storage ---
 boto3==1.35.79           # S3 / S3-compatible — STORAGE_PROVIDER=s3|s3_compatible
 firebase-admin==6.6.0    # Firebase Storage — STORAGE_PROVIDER=firebase
+cloudinary==1.46.2       # Cloudinary — STORAGE_PROVIDER=cloudinary
 
 # --- PDF generation ---
 reportlab==4.2.5

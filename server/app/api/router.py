@@ -4,9 +4,10 @@ domain module, to avoid two people/agents editing the same file at once. Each do
 module still owns and exports its own `router = APIRouter(prefix="/xxx", tags=["xxx"])`.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from app.ai.base import is_ai_configured
+from app.core.subscription import require_writable_organization
 
 router = APIRouter()
 
@@ -35,16 +36,26 @@ from app.api.notifications.routes import router as notifications_router  # noqa:
 from app.api.billing.routes import router as billing_router  # noqa: E402
 from app.api.platform.routes import router as platform_router  # noqa: E402
 
+# The read-only gate (CONTRACTS.md §2c): every organization-scoped domain with write routes
+# gets `require_writable_organization` at router level — it passes GET/HEAD/OPTIONS through
+# and refuses other methods with 402 (code TRIAL_EXPIRED / ACCESS_EXPIRED /
+# ORGANIZATION_SUSPENDED) while the org's trial/paid/manual access has lapsed or a
+# system_admin suspended it. `auth` (login must keep working
+# so people can still read), `billing` (paying is how an org gets back in), `dashboard`/
+# `audit_logs` (read-only anyway), `notifications` (marking read is UI state, not clinical
+# data) and `platform` (system_admin has no org) are deliberately NOT gated.
+_READ_ONLY_GATE = [Depends(require_writable_organization)]
+
 router.include_router(auth_router)
-router.include_router(users_router)
-router.include_router(organizations_router)
-router.include_router(patients_router)
-router.include_router(studies_router)
-router.include_router(uploads_router)
-router.include_router(intake_router)
-router.include_router(analysis_router)
-router.include_router(reports_router)
-router.include_router(templates_router)
+router.include_router(users_router, dependencies=_READ_ONLY_GATE)
+router.include_router(organizations_router, dependencies=_READ_ONLY_GATE)
+router.include_router(patients_router, dependencies=_READ_ONLY_GATE)
+router.include_router(studies_router, dependencies=_READ_ONLY_GATE)
+router.include_router(uploads_router, dependencies=_READ_ONLY_GATE)
+router.include_router(intake_router, dependencies=_READ_ONLY_GATE)
+router.include_router(analysis_router, dependencies=_READ_ONLY_GATE)
+router.include_router(reports_router, dependencies=_READ_ONLY_GATE)
+router.include_router(templates_router, dependencies=_READ_ONLY_GATE)
 router.include_router(dashboard_router)
 router.include_router(audit_logs_router)
 router.include_router(notifications_router)

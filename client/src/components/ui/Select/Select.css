@@ -5,7 +5,7 @@
 }
 
 .ui-select__label {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-text-primary);
 }
@@ -25,7 +25,7 @@
   border: 1px solid var(--color-border-strong);
   border-radius: var(--radius-sm);
   padding: 10px 36px 10px 14px;
-  font-size: 0.92rem;
+  font-size: var(--font-size-base);
   color: var(--color-text-primary);
   cursor: pointer;
   transition: border-color var(--transition-base), box-shadow var(--transition-base);
@@ -49,7 +49,7 @@
 }
 
 .ui-select__message {
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
 

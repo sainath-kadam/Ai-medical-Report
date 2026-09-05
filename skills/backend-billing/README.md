@@ -6,13 +6,18 @@ original CONTRACTS.md spec — see CONTRACTS.md §2a.
 
 ## Key files
 
-- `server/app/core/subscription.py` — `require_active_subscription`, the `Depends()` gate
-  applied to `POST /analysis/studies/{id}/analyze` (and nowhere else). Raises 402
-  (`TRIAL_EXPIRED` / `TRIAL_DAILY_LIMIT_REACHED`) when the org has no active paid
-  subscription and the trial window/day-limit is exhausted; otherwise a no-op pass-through.
+- `server/app/core/subscription.py` — `evaluate_access(org) -> OrgAccess` (the ONE answer to
+  "can this org write, until when, why": suspended > Stripe active > manual `accessEndsAt`
+  > trial), `require_writable_organization` (router-level read-only gate, CONTRACTS.md §2c:
+  passes GET, 402s other methods with the reason as code), and
+  `require_active_subscription` (analyze route: same rule + the trial daily report cap →
+  `TRIAL_DAILY_LIMIT_REACHED`). `with_access(org_doc)` attaches `access` to org responses
+  and strips platform-only fields.
 - `server/app/services/billing_service.py` — `BillingService`: `create_checkout_session`
-  (Stripe-hosted Checkout URL), `get_status` (current `subscriptionStatus`/`trialEndsAt`),
-  `handle_webhook_event` (the only writer of `organizations.subscriptionStatus`).
+  (Stripe-hosted Checkout URL), `get_status` (`subscriptionStatus`, `trialEndsAt`,
+  `accessEndsAt`, `isSuspended`, evaluated `access`, `billingConfigured`),
+  `handle_webhook_event` (the only writer of `organizations.subscriptionStatus`; the
+  platform domain writes the manual-access fields instead — see `backend-platform`).
 - `server/app/api/billing/routes.py` — `POST /billing/checkout`, `GET /billing/status`
   (both normal authenticated routes), `POST /billing/webhook` (called by Stripe itself).
 

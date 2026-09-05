@@ -16,8 +16,13 @@ in `client/src/routes/AppRoutes.tsx`. Each page owns its own data fetching (via
 - `Users/`, `AuditLogs/`, `OrganizationSettings/`, `Templates/` — org_admin-only screens
   (gated by `RoleRoute` in `client/src/routes/`).
 - `Billing/`, `Settings/`, `Profile/` — account-level screens, any authenticated role.
-- `Platform/CreateOrganization.tsx` — system_admin-only; the one screen that creates a new
-  org + its first org_admin rather than operating inside an existing org.
+- `Platform/` — system_admin-only (CONTRACTS.md §2b/§2c): `Organizations.tsx` (every org on
+  the platform with its evaluated `access` badge, users/reports counts, search),
+  `OrganizationDetail.tsx` (grant/clear a manual access period via a date + quick +30/+90/
+  +1y buttons, suspend/lift, platform-only note, plan, member roster), `CreateOrganization.tsx`
+  (new org + first org_admin), `SystemAdmins.tsx` (list/add platform admins). They share
+  `Platform.css` and `accessBadge.ts` (one label/tone per access state, so the list and detail
+  never disagree).
 - `Landing/` — public marketing page shown only when logged out (see `RootGate` in
   `AppRoutes.tsx`).
 - `auth/Login/`, `auth/Signup/`, `auth/ForgotPassword/` — unauthenticated auth flows.

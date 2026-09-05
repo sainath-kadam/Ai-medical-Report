@@ -17,7 +17,7 @@
   border-radius: var(--radius-sm);
   background: var(--color-surface);
   color: var(--color-text-secondary);
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   cursor: pointer;
   transition: background-color var(--transition-base), border-color var(--transition-base), color var(--transition-base);
@@ -53,6 +53,6 @@
   .pagination__page {
     min-width: 30px;
     height: 30px;
-    font-size: 0.8rem;
+    font-size: var(--font-size-sm);
   }
 }

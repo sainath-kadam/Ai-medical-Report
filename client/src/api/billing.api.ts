@@ -1,8 +1,14 @@
 import { api } from './axiosInstance';
+import { OrganizationAccess } from '../types';
 
 export interface BillingStatus {
   subscriptionStatus: 'trial' | 'active' | 'expired';
   trialEndsAt: string | null;
+  // Manual access period granted by the platform administrator, if any.
+  accessEndsAt: string | null;
+  isSuspended: boolean;
+  // The single evaluated answer to "can we write right now, until when, and why".
+  access: OrganizationAccess;
   billingConfigured: boolean;
 }
 

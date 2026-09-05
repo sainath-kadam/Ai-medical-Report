@@ -1,0 +1,17 @@
+# Keep the Docker build context to what the Dockerfile actually COPYs (app/ +
+# requirements.txt). Without this, a local `docker compose build` ships the multi-hundred-MB
+# .venv and every uploaded study file to the daemon on each build — and .env must never be
+# able to end up inside an image.
+.venv/
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+htmlcov/
+.coverage
+uploads/
+.env
+.env.*
+tests/
+*.log

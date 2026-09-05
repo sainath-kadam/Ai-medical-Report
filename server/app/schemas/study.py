@@ -40,6 +40,7 @@ class StudyCreate(CamelModel):
     clinical_history: str | None = Field(default=None, max_length=5000)
     study_date: date
     template_id: str | None = None
+    referring_physician: str | None = Field(default=None, max_length=200)
 
     _coerce_study_date = field_validator("study_date", mode="before")(_coerce_study_date)
 
@@ -51,5 +52,6 @@ class StudyUpdate(CamelModel):
     study_date: date | None = None
     template_id: str | None = None
     assigned_doctor_id: str | None = None
+    referring_physician: str | None = Field(default=None, max_length=200)
 
     _coerce_study_date = field_validator("study_date", mode="before")(_coerce_study_date)

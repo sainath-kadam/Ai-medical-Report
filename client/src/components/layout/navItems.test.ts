@@ -23,9 +23,11 @@ describe('navItemsForRole', () => {
     }
   });
 
-  it('system_admin sees only the Organizations item, not clinical or org_admin items', () => {
+  it('system_admin sees only the platform items, not clinical or org_admin items', () => {
     const items = navItemsForRole('system_admin');
     expect(items.some((i) => i.to === '/platform/organizations')).toBe(true);
+    expect(items.some((i) => i.to === '/platform/admins')).toBe(true);
+    expect(items.every((i) => i.to.startsWith('/platform/'))).toBe(true);
     expect(items.some((i) => i.to === '/')).toBe(false);
     expect(items.some((i) => i.to === '/patients')).toBe(false);
     expect(items.some((i) => i.to === '/users')).toBe(false);

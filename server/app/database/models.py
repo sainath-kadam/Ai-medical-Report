@@ -34,7 +34,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, false
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
 from app.utils.ids import new_id
@@ -65,6 +65,17 @@ class Organization(Base):
     trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     stripe_customer_id: Mapped[str | None] = mapped_column(String(100))
     stripe_subscription_id: Mapped[str | None] = mapped_column(String(100))
+    # --- Platform-managed access (CONTRACTS.md §2c) — set only by a system_admin ---
+    # A manual access period: the org is writable until this instant regardless of trial/
+    # Stripe state (e.g. paid offline / by invoice). `None` = no manual period.
+    access_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Hard block, orthogonal to the billing state (so lifting it restores whatever the
+    # billing state is, with nothing to "remember"): while true, every write is refused
+    # with 402 ORGANIZATION_SUSPENDED; reads and login keep working.
+    is_suspended: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    # Free-text note for the platform team only (e.g. invoice number). Never shown to the
+    # organization's own users.
+    access_note: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
 
@@ -117,6 +128,10 @@ class Study(Base):
     body_part: Mapped[str] = mapped_column(String(200))
     clinical_history: Mapped[str | None] = mapped_column(Text)
     study_date: Mapped[str] = mapped_column(String(10))
+    # The doctor who ORDERED the study (context shown on the report) -- distinct from
+    # whoever ends up reporting/signing it (report_service.py's "Reported by", sourced
+    # from the current user, not this field). Optional: not every referral is external.
+    referring_physician: Mapped[str | None] = mapped_column(String(200))
     status: Mapped[str] = mapped_column(String(20), index=True)
     assigned_doctor_id: Mapped[str | None] = mapped_column(String(32))
     template_id: Mapped[str | None] = mapped_column(String(32))

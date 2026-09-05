@@ -16,7 +16,7 @@ from app.schemas.intake import IntakeParseRequest
 # with no default — `sex` is required too, but always safely defaults to "unspecified"
 # (matching PatientForm's own convention) so it's deliberately NOT asked about here.
 _REQUIRED_FIELDS: dict[str, list[str]] = {
-    "patient": ["name", "mrn", "dateOfBirth"],
+    "patient": ["name", "dateOfBirth"],  # mrn is optional — generated server-side when absent
     "study": ["modality", "bodyPart"],
 }
 

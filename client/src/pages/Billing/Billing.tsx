@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { FiAlertTriangle, FiCheckCircle, FiClock, FiCreditCard } from 'react-icons/fi';
+import { FiAlertTriangle, FiCheckCircle, FiClock, FiCreditCard, FiLock, FiShield } from 'react-icons/fi';
 import { billingApi, BillingStatus } from '../../api/billing.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
 import Card from '../../components/common/Card/Card';
@@ -59,7 +59,7 @@ export default function Billing() {
     <div className="billing-page">
       <div className="billing-page__header">
         <h1>Billing</h1>
-        <p>Your organization's subscription and trial status.</p>
+        <p>Your organization's subscription, trial and access status.</p>
       </div>
 
       {error && <div className="billing-page__error">{error}</div>}
@@ -88,14 +88,39 @@ export default function Billing() {
             </div>
           )}
 
-          {status.subscriptionStatus === 'expired' && (
+          {status.subscriptionStatus === 'expired' && status.access.source !== 'manual' && (
             <div className="billing-page__expired-note">
               <FiAlertTriangle size={18} />
               <span>Your free trial has ended. Subscribe to keep generating AI reports.</span>
             </div>
           )}
 
-          {status.subscriptionStatus !== 'active' && (
+          {/* Access granted by hand by the platform administrator (e.g. paid by invoice) —
+              independent of the trial/Stripe state above. */}
+          {status.access.source === 'manual' && status.access.endsAt && (
+            <div className="billing-page__active-note">
+              <FiShield size={18} />
+              <span>
+                Access granted by the platform administrator until {formatDate(status.access.endsAt)}. All features are
+                available until then.
+              </span>
+            </div>
+          )}
+
+          {!status.access.writable && (
+            <div className="billing-page__expired-note">
+              <FiLock size={18} />
+              <span>
+                {status.access.reason === 'ORGANIZATION_SUSPENDED'
+                  ? 'Your organization has been suspended by the platform administrator. Everything is read-only until access is restored.'
+                  : status.access.reason === 'ACCESS_EXPIRED'
+                    ? `Your access period ended${status.access.endsAt ? ` on ${formatDate(status.access.endsAt)}` : ''}. Everything is read-only until it is renewed.`
+                    : 'Your organization is read-only: you can view existing records but not create or change anything.'}
+              </span>
+            </div>
+          )}
+
+          {status.subscriptionStatus !== 'active' && status.access.reason !== 'ORGANIZATION_SUSPENDED' && (
             <>
               {status.billingConfigured ? (
                 <Button icon={<FiCreditCard size={16} />} onClick={handleSubscribe} isLoading={isCheckingOut} size="lg">

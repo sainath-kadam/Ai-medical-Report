@@ -8,8 +8,10 @@ wrapped in. Three files total, all short — read them directly rather than gues
 - `client/src/routes/AppRoutes.tsx` — the entire route table. `/`, `/login`, `/signup`,
   `/forgot-password` are public; everything else nests under `<ProtectedRoute>` +
   `<DashboardLayout>`. `/templates`, `/users`, `/organization`, `/audit-logs` are further
-  wrapped in `<RoleRoute roles={['org_admin']}>`; `/platform/organizations` in
-  `<RoleRoute roles={['system_admin']}>`. Unmatched paths hit `/404` (`NotFound`).
+  wrapped in `<RoleRoute roles={['org_admin']}>`; `/platform/organizations` (list),
+  `/platform/organizations/new` (create), `/platform/organizations/:id` (access controls +
+  members) and `/platform/admins` in `<RoleRoute roles={['system_admin']}>`. Unmatched paths
+  hit `/404` (`NotFound`).
 - `client/src/routes/ProtectedRoute.tsx` — redirects to `/login` if not authenticated
   (renders a full-page `Loader` while auth is still resolving); otherwise renders `<Outlet>`.
 - `client/src/routes/RoleRoute.tsx` — nested under `ProtectedRoute`, so auth is already

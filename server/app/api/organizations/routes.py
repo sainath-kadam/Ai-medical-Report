@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
 from app.core.security import CurrentUser, get_current_user, require_roles
+from app.core.subscription import with_access
 from app.schemas.organization import OrganizationUpdateRequest
 from app.services.organization_service import OrganizationService
 from app.utils.ids import to_public
@@ -29,7 +30,7 @@ async def get_my_organization(
     # Wrapped as {"organization": ...} to match the sibling GET /auth/me shape
     # ({user, organization}) that the already-built frontend organization.api.ts assumes.
     org = await OrganizationService(db).get_by_id(current_user.organization_id)
-    return ok({"organization": to_public(org)})
+    return ok({"organization": to_public(with_access(org))})
 
 
 @router.patch("/me")
@@ -42,4 +43,4 @@ async def update_my_organization(
     org = await OrganizationService(db).update(current_user.organization_id, update, current_user.id)
     # Wrapped for the same reason GET above is — matches organization.api.ts's `.then((r)
     # => r.data.data.organization)` unwrap.
-    return ok({"organization": to_public(org)})
+    return ok({"organization": to_public(with_access(org))})

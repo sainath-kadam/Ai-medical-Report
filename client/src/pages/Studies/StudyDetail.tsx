@@ -16,7 +16,7 @@ import { studyApi } from '../../api/study.api';
 import { patientApi } from '../../api/patient.api';
 import { reportApi } from '../../api/report.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
-import { AnalysisJob, Patient, Report, Study, StudyFile } from '../../types';
+import { AnalysisJob, GeneratedReportContent, Patient, Report, Study, StudyFile } from '../../types';
 import {
   ANALYSIS_JOB_STAGES,
   ANALYSIS_JOB_STATUS_META,
@@ -34,8 +34,7 @@ import EmptyState from '../../components/common/EmptyState/EmptyState';
 import StatusBadge from '../../components/common/StatusBadge/StatusBadge';
 import FileDropzone from '../../components/upload/FileDropzone/FileDropzone';
 import Tabs from '../../components/ui/Tabs/Tabs';
-import ReportViewer from '../../components/reports/ReportViewer/ReportViewer';
-import RequestChangesPanel from '../../components/reports/RequestChangesPanel/RequestChangesPanel';
+import ReportWorkspace from '../../components/reports/ReportWorkspace/ReportWorkspace';
 import './StudyDetail.css';
 
 type TabKey = 'overview' | 'images' | 'report' | 'history';
@@ -76,6 +75,8 @@ export default function StudyDetail() {
   const [isFinalizing, setIsFinalizing] = useState(false);
   const [isApplyingChanges, setIsApplyingChanges] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [isAmending, setIsAmending] = useState(false);
   const [actionError, setActionError] = useState('');
 
   const canManage = user?.role === 'org_admin' || user?.role === 'doctor';
@@ -182,7 +183,7 @@ export default function StudyDetail() {
   }, [study?.id]);
 
   const canRunAnalysis = user?.role === 'org_admin' || user?.role === 'doctor';
-  const isBusy = isRunningAnalysis || isRegenerating || isFinalizing || isApplyingChanges;
+  const isBusy = isRunningAnalysis || isRegenerating || isFinalizing || isApplyingChanges || isSavingEdit || isAmending;
 
   async function handleRunAnalysis() {
     if (!study) return;
@@ -240,6 +241,22 @@ export default function StudyDetail() {
     }
   }
 
+  async function handleSaveReportEdit(content: GeneratedReportContent) {
+    if (!report) return;
+    setActionError('');
+    setIsSavingEdit(true);
+    try {
+      const updated = await reportApi.update(report.id, content);
+      setReport(updated);
+      setSelectedVersion(updated.currentVersion);
+    } catch (err) {
+      setActionError(apiErrorMessage(err));
+      throw err; // re-thrown so ReportViewer knows the save failed and stays in edit mode
+    } finally {
+      setIsSavingEdit(false);
+    }
+  }
+
   async function handleFinalize() {
     if (!report) return;
     setActionError('');
@@ -251,6 +268,21 @@ export default function StudyDetail() {
       setActionError(apiErrorMessage(err));
     } finally {
       setIsFinalizing(false);
+    }
+  }
+
+  async function handleAmend() {
+    if (!report) return;
+    setActionError('');
+    setIsAmending(true);
+    try {
+      const updated = await reportApi.amend(report.id);
+      setReport(updated);
+      setSelectedVersion(updated.currentVersion);
+    } catch (err) {
+      setActionError(apiErrorMessage(err));
+    } finally {
+      setIsAmending(false);
     }
   }
 
@@ -449,6 +481,12 @@ export default function StudyDetail() {
                   </Button>
                 )}
                 {uploadError && <p className="study-detail__error-text">{uploadError}</p>}
+                {report && (
+                  <p className="study-detail__hint">
+                    Files added here are included the next time you run AI analysis from the Report tab — every
+                    image on the study is read together, and the result is saved as a new version of the report.
+                  </p>
+                )}
               </div>
             </Card>
           </div>
@@ -479,129 +517,112 @@ export default function StudyDetail() {
         </div>
       )}
 
-      {activeTab === 'report' && (
-        <div className="study-detail__layout">
-          <div className="study-detail__main">
-            {study.files.length === 0 ? (
-              <Card>
-                <EmptyState
-                  icon={<FiFile />}
-                  title="No imaging file yet"
-                  description="Upload a scan in the Images tab before running AI analysis."
-                  action={
-                    <Button variant="outline" onClick={() => setActiveTab('images')}>
-                      Go to Images
-                    </Button>
+      {activeTab === 'report' &&
+        (report ? (
+          <ReportWorkspace
+            report={report}
+            selectedVersion={selectedVersion}
+            onSelectVersion={setSelectedVersion}
+            canManage={canManage}
+            isBusy={isBusy}
+            actionError={actionError}
+            onSaveEdit={handleSaveReportEdit}
+            isSavingEdit={isSavingEdit}
+            onRequestChanges={handleRequestChanges}
+            isApplyingChanges={isApplyingChanges}
+            onRegenerate={handleRegenerate}
+            isRegenerating={isRegenerating}
+            onFinalize={handleFinalize}
+            isFinalizing={isFinalizing}
+            onDownload={handleDownload}
+            isDownloading={isDownloading}
+            onAmend={handleAmend}
+            isAmending={isAmending}
+            runAnalysis={
+              canRunAnalysis
+                ? {
+                    label: 'Re-run AI analysis',
+                    onRun: handleRunAnalysis,
+                    isRunning: isRunningAnalysis,
+                    // A finalized report is immutable -- amend it first, then re-run.
+                    disabled: isBusy || study.files.length === 0 || report.status === 'finalized',
+                    job,
+                    jobIsTerminal,
+                    currentStageIndex,
                   }
-                />
-              </Card>
-            ) : isReportLoading ? (
-              <div className="study-detail__tab-loading">
-                <Loader size="lg" />
-              </div>
-            ) : report ? (
-              <>
-                {report.status !== 'finalized' && (
-                  <div className="study-detail__preliminary-banner">
-                    <FiAlertTriangle size={16} />
-                    <span>PRELIMINARY AI-ASSISTED REPORT — REQUIRES QUALIFIED MEDICAL REVIEW. Not a final diagnosis.</span>
-                  </div>
-                )}
-                <ReportViewer report={report} selectedVersion={selectedVersion} onSelectVersion={setSelectedVersion} />
-                {canManage && report.status !== 'finalized' && (
-                  <RequestChangesPanel onSubmit={handleRequestChanges} disabled={isBusy} />
-                )}
-                {isApplyingChanges && (
-                  <Card className="study-detail__applying">
-                    <Loader size="sm" label="Applying requested changes…" />
-                  </Card>
-                )}
-              </>
-            ) : (
-              <Card>
-                <EmptyState icon={<FiCpu />} title="No report yet" description="Run AI analysis (from the panel on the right) to generate a preliminary report." />
-              </Card>
-            )}
-          </div>
-
-          <aside className="study-detail__sidebar">
-            {canRunAnalysis && (
-              <Card>
-                <h3 className="study-detail__card-title">AI analysis</h3>
-                <Button
-                  icon={<FiCpu size={16} />}
-                  onClick={handleRunAnalysis}
-                  isLoading={isRunningAnalysis && !job}
-                  disabled={isBusy || study.files.length === 0}
-                  fullWidth
-                >
-                  {report ? 'Re-run AI analysis' : 'Run AI analysis'}
-                </Button>
-
-                {job && !jobIsTerminal && (
-                  <div className="study-detail__job">
-                    <div className="study-detail__job-steps">
-                      {ANALYSIS_JOB_STAGES.map((stage, idx) => {
-                        const state = idx < currentStageIndex ? 'done' : idx === currentStageIndex ? 'current' : 'pending';
-                        return (
-                          <div key={stage.status} className={`study-detail__job-step study-detail__job-step--${state}`}>
-                            <span className="study-detail__job-step-dot" />
-                            <span>{stage.label}</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="study-detail__job-loading">
-                      <Loader size="sm" label={ANALYSIS_JOB_STATUS_META[job.status].label} />
-                    </div>
-                  </div>
-                )}
-              </Card>
-            )}
-
-            {report && (
-              <Card>
-                <h3 className="study-detail__card-title">Actions</h3>
-                <div className="study-detail__report-actions">
-                  {canManage && report.status !== 'finalized' && (
-                    <>
-                      <Button icon={<FiRefreshCw size={16} />} variant="outline" onClick={handleRegenerate} isLoading={isRegenerating} disabled={isBusy} fullWidth>
-                        Regenerate
+                : undefined
+            }
+          />
+        ) : (
+          <div className="study-detail__layout">
+            <div className="study-detail__main">
+              {study.files.length === 0 ? (
+                <Card>
+                  <EmptyState
+                    icon={<FiFile />}
+                    title="No imaging file yet"
+                    description="Upload a scan in the Images tab before running AI analysis."
+                    action={
+                      <Button variant="outline" onClick={() => setActiveTab('images')}>
+                        Go to Images
                       </Button>
-                      <Button icon={<FiCheckCircle size={16} />} onClick={handleFinalize} isLoading={isFinalizing} disabled={isBusy} fullWidth>
-                        Finalize report
-                      </Button>
-                    </>
-                  )}
-                  <Button variant="outline" icon={<FiDownload size={16} />} onClick={handleDownload} isLoading={isDownloading} fullWidth>
-                    Download PDF
-                  </Button>
+                    }
+                  />
+                </Card>
+              ) : isReportLoading ? (
+                <div className="study-detail__tab-loading">
+                  <Loader size="lg" />
                 </div>
-                {report.status === 'finalized' && (
-                  <p className="study-detail__finalized-note">This report has been finalized and is now immutable.</p>
-                )}
-              </Card>
-            )}
+              ) : (
+                <Card>
+                  <EmptyState icon={<FiCpu />} title="No report yet" description="Run AI analysis (from the panel on the right) to generate a preliminary report." />
+                </Card>
+              )}
+            </div>
 
-            {actionError && <p className="study-detail__error-text">{actionError}</p>}
-            <p className="study-detail__disclaimer">
-              AI-drafted findings are preliminary decision support only and require clinician review before they
-              inform patient care.
-            </p>
-            {report && (
-              <Card className="study-detail__references">
-                <h3 className="study-detail__card-title">Reference sources</h3>
-                <p className="study-detail__hint">Clinical resources for reviewing the report:</p>
-                <ul className="study-detail__reference-list">
-                  <li><a href="https://www.radiologyinfo.org/" target="_blank" rel="noreferrer">RadiologyInfo.org</a></li>
-                  <li><a href="https://www.acr.org/Clinical-Resources/ACR-Appropriateness-Criteria" target="_blank" rel="noreferrer">ACR Appropriateness Criteria</a></li>
-                  <li><a href="https://www.rsna.org/" target="_blank" rel="noreferrer">Radiological Society of North America</a></li>
-                </ul>
-              </Card>
-            )}
-          </aside>
-        </div>
-      )}
+            <aside className="study-detail__sidebar">
+              {canRunAnalysis && (
+                <Card>
+                  <h3 className="study-detail__card-title">AI analysis</h3>
+                  <Button
+                    icon={<FiCpu size={16} />}
+                    onClick={handleRunAnalysis}
+                    isLoading={isRunningAnalysis && !job}
+                    disabled={isBusy || study.files.length === 0}
+                    fullWidth
+                  >
+                    Run AI analysis
+                  </Button>
+
+                  {job && !jobIsTerminal && (
+                    <div className="study-detail__job">
+                      <div className="study-detail__job-steps">
+                        {ANALYSIS_JOB_STAGES.map((stage, idx) => {
+                          const state = idx < currentStageIndex ? 'done' : idx === currentStageIndex ? 'current' : 'pending';
+                          return (
+                            <div key={stage.status} className={`study-detail__job-step study-detail__job-step--${state}`}>
+                              <span className="study-detail__job-step-dot" />
+                              <span>{stage.label}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="study-detail__job-loading">
+                        <Loader size="sm" label={ANALYSIS_JOB_STATUS_META[job.status].label} />
+                      </div>
+                    </div>
+                  )}
+                </Card>
+              )}
+
+              {actionError && <p className="study-detail__error-text">{actionError}</p>}
+              <p className="study-detail__disclaimer">
+                AI-drafted findings are preliminary decision support only and require clinician review before they
+                inform patient care.
+              </p>
+            </aside>
+          </div>
+        ))}
 
       {activeTab === 'history' && (
         <Card>

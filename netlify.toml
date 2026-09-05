@@ -1,0 +1,38 @@
+# Netlify build + routing for the frontend (client/). Netlify reads this file from the repo
+# root automatically when the site is imported, so the UI's build settings need no edits.
+# Everything the SPA needs at runtime is baked in at build time via VITE_* variables — set
+# those in Netlify's UI (Site configuration -> Environment variables), NOT here: values in
+# this file would override the UI and make them impossible to change without a commit.
+# Full walkthrough: DEPLOY.md.
+
+[build]
+  base    = "client"
+  command = "npm run build"
+  publish = "dist"          # relative to `base` -> client/dist
+
+[build.environment]
+  NODE_VERSION = "22"
+
+# 1) Proxy signed file URLs to the API.
+#    The backend returns study files as RELATIVE signed URLs
+#    (/api/v1/uploads/file/<key>?token=..., see server/app/storage/local.py) and the UI puts
+#    them straight into <img>/<video> tags, so the browser fetches them from *this* origin.
+#    Without this rule they'd hit the SPA fallback below and get index.html instead of the
+#    image. This mirrors what client/nginx.conf does for the docker-compose deployment.
+#    ONLY those file fetches go through here: Netlify proxies time out after 26 s, and AI
+#    analysis can run longer than that, so the app's own API calls use the absolute
+#    VITE_API_URL and never touch this rule. Query strings (?token=...) pass through.
+#
+#    >>> Replace REPLACE-WITH-YOUR-RENDER-SERVICE with your Render service host, e.g.
+#    >>> medscan-api.onrender.com (the same host you put in VITE_API_URL). <<<
+[[redirects]]
+  from   = "/api/*"
+  to     = "https://REPLACE-WITH-YOUR-RENDER-SERVICE.onrender.com/api/:splat"
+  status = 200
+  force  = true
+
+# 2) React Router SPA fallback — deep links (e.g. /reports/abc123) work on a hard refresh.
+[[redirects]]
+  from   = "/*"
+  to     = "/index.html"
+  status = 200

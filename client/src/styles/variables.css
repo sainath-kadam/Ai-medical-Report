@@ -64,6 +64,18 @@
   --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-document: Georgia, 'Times New Roman', serif;
 
+  /* Type scale -- introduced to replace ~30 near-duplicate one-off rem values (0.72
+     through 1.05rem) that had organically drifted across component CSS files with no
+     actual intent behind the differences. Every component should read one of these
+     rather than write a literal font-size. Values chosen to sit at the center of each
+     existing cluster, minimizing visual change while consolidating the scale. */
+  --font-size-xs: 0.75rem;   /* captions, meta text, timestamps */
+  --font-size-sm: 0.85rem;   /* secondary body text, labels, buttons -- the most common size */
+  --font-size-base: 0.9rem;  /* default body text */
+  --font-size-lg: 1rem;      /* emphasized/lead body text */
+  --font-size-xl: 1.25rem;   /* card/section sub-headings */
+  --font-size-2xl: 1.5rem;   /* page <h1> titles */
+
   /* ---- Layout ---- */
   --topbar-height: 64px;
   --sidebar-width: 260px;

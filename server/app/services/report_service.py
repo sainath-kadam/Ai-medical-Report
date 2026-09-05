@@ -28,6 +28,7 @@ correction creates an amendment" rule.
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 from typing import Any
 
@@ -54,6 +55,7 @@ from app.repositories.template_repository import TemplateRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.common import PaginationParams
 from app.schemas.report import ChangeRequestBody, ReportContentEdit
+from app.services.analysis_service import load_study_images
 from app.services.audit_service import AuditService
 from app.services.study_service import with_signed_urls
 from app.storage import get_storage
@@ -291,9 +293,16 @@ class ReportService:
         sections = self._template_sections(template)
         high_accuracy = bool(organization.get("highAccuracyMode"))
 
-        generated = await get_report_provider().generate(
-            organization.get("name", ""), sections, context, findings, high_accuracy
+        report_provider = get_report_provider()
+        # Same concurrent summary+report pattern as AnalysisService.run_analysis (see
+        # there for why it's safe to run these two together) — a regenerate is still
+        # "generating a report", so it gets a freshly distilled summary too rather than
+        # reusing whatever the previous version had.
+        clinical_summary, generated = await asyncio.gather(
+            report_provider.summarize_findings(organization.get("name", ""), context, findings, high_accuracy),
+            report_provider.generate(organization.get("name", ""), sections, context, findings, high_accuracy),
         )
+        generated.summary = clinical_summary
 
         version = {
             "versionNumber": report["currentVersion"] + 1,
@@ -356,6 +365,48 @@ class ReportService:
         )
         return await self._enrich(updated, current_user.organization_id)
 
+    async def amend_report(
+        self,
+        report_id: str,
+        current_user: CurrentUser,
+        *,
+        ip: str | None,
+        user_agent: str | None,
+    ) -> dict[str, Any]:
+        """The one sanctioned way past `_require_not_finalized` (spec §25: "finalized
+        reports are immutable; a correction creates an amendment"). Moves a `finalized`
+        report to `amended`, which re-opens it to edits / AI revisions / regeneration —
+        each of those still appends a new version, so the version that was finalized stays
+        intact in the history — and `finalize_report` locks it again afterwards. Nothing
+        else can move a report out of `finalized`. Audit-logged as REPORT_AMENDED."""
+        report = await self.reports.find_by_id_scoped(report_id, current_user.organization_id)
+        if not report:
+            raise AppError.not_found("Report not found", "REPORT_NOT_FOUND")
+        if report["status"] != _IMMUTABLE_STATUS:
+            raise AppError.conflict(
+                "Only a finalized report can be amended — this one is still editable.",
+                "REPORT_NOT_FINALIZED",
+            )
+
+        updated = await self.reports.update_scoped(
+            report_id,
+            current_user.organization_id,
+            {"status": "amended"},
+        )
+        if not updated:
+            raise AppError.not_found("Report not found", "REPORT_NOT_FOUND")
+
+        await self.audit.log(
+            organization_id=current_user.organization_id,
+            user_id=current_user.id,
+            action="REPORT_AMENDED",
+            resource_type="report",
+            resource_id=report_id,
+            ip=ip,
+            user_agent=user_agent,
+        )
+        return await self._enrich(updated, current_user.organization_id)
+
     async def get_pdf_bytes(
         self,
         report_id: str,
@@ -368,12 +419,12 @@ class ReportService:
         if not report:
             raise AppError.not_found("Report not found", "REPORT_NOT_FOUND")
 
-        # Persisted under a key derived from (report, version, status) — status is part of
-        # the key because build_report_pdf() renders a different banner for a non-finalized
-        # report (spec §22/§53), so a report finalized after its PDF was first generated at
-        # the same version must still get a freshly rendered copy, not the stale cached one.
+        # Persisted under a key derived from (report, version) only — build_report_pdf()
+        # renders identically regardless of status, so unlike the banner-carrying version
+        # this once was, a report changing status doesn't need a fresh render at the same
+        # version.
         storage = get_storage()
-        storage_key = f"pdf/{report_id}_v{report['currentVersion']}_{report['status']}.pdf"
+        storage_key = f"pdf/{report_id}_v{report['currentVersion']}.pdf"
         try:
             pdf_bytes = await storage.download(storage_key)
         except AppError as exc:
@@ -398,7 +449,6 @@ class ReportService:
                 study=to_public(study),
                 template=to_public(template),
                 doctor_name=current_user.name,
-                report_status=report["status"],
                 report_id=report["_id"],
                 version_number=report["currentVersion"],
                 logo_bytes=logo_bytes,
@@ -450,13 +500,13 @@ class ReportService:
         else:
             if job:
                 await self.jobs.update_scoped(job["_id"], organization_id, {"status": "analyzing"})
-            files = study.get("files") or []
-            image_bytes = None
-            image_mime_type = None
-            if files:
-                image_bytes = await get_storage().download(files[0]["storageKey"])
-                image_mime_type = files[0].get("mimeType")
-            context_for_analysis = self._build_context(study, patient, image_bytes=image_bytes, image_mime_type=image_mime_type)
+            # Every image on the study (same set `AnalysisService.run_analysis` uses), so a
+            # revision requested after another upload re-examines the new image too.
+            images = await load_study_images(study.get("files") or [])
+            image_bytes, image_mime_type = images[0] if images else (None, None)
+            context_for_analysis = self._build_context(
+                study, patient, image_bytes=image_bytes, image_mime_type=image_mime_type, images=images
+            )
             findings = await get_imaging_provider().analyze(context_for_analysis, high_accuracy)
             await self.studies.set_last_findings(
                 study["_id"],
@@ -574,6 +624,7 @@ class ReportService:
         *,
         image_bytes: bytes | None,
         image_mime_type: str | None = None,
+        images: list[tuple[bytes, str]] | None = None,
     ) -> StudyContext:
         return StudyContext(
             modality=study["modality"],
@@ -583,6 +634,7 @@ class ReportService:
             clinical_history=study.get("clinicalHistory"),
             image_bytes=image_bytes,
             image_mime_type=image_mime_type,
+            images=images or [],
         )
 
     async def _latest_job_for_study(self, study_id: str, organization_id: str) -> dict[str, Any] | None:

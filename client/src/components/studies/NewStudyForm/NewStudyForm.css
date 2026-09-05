@@ -25,12 +25,12 @@
   flex-wrap: wrap;
 }
 .study-intake-form__section-header h3 {
-  font-size: 1rem;
+  font-size: var(--font-size-lg);
   color: var(--color-text-primary);
 }
 
 .study-intake-form__section-title {
-  font-size: 1rem;
+  font-size: var(--font-size-lg);
   color: var(--color-text-primary);
   margin-bottom: var(--space-3);
 }
@@ -48,7 +48,7 @@
   background: var(--color-surface);
   border: none;
   padding: 6px 12px;
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   cursor: pointer;
 }
@@ -57,7 +57,7 @@
 }
 .study-intake-form__mode-toggle button.is-active {
   background: var(--color-primary);
-  color: var(--color-primary-contrast, #fff);
+  color: var(--color-text-on-primary);
 }
 
 .study-intake-form__row {
@@ -97,7 +97,7 @@
 }
 
 .study-intake-form__patient-empty {
-  font-size: 0.84rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
   padding: var(--space-2);
   text-align: center;
@@ -115,7 +115,7 @@
   padding: var(--space-2) var(--space-3);
   cursor: pointer;
   text-align: left;
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-primary);
   transition: border-color var(--transition-base), background-color var(--transition-base);
 }
@@ -125,7 +125,7 @@
 }
 .study-intake-form__patient-result span {
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
 }
 
 .study-intake-form__patient-selected {
@@ -141,15 +141,15 @@
 .study-intake-form__patient-selected strong {
   display: block;
   color: var(--color-text-primary);
-  font-size: 0.9rem;
+  font-size: var(--font-size-base);
 }
 .study-intake-form__patient-selected span {
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
 }
 
 .study-intake-form__hint {
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
   margin-bottom: var(--space-3);
 }
@@ -159,7 +159,7 @@
   color: var(--color-danger);
   padding: var(--space-3);
   border-radius: var(--radius-sm);
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   margin-bottom: var(--space-3);
 }
 
@@ -168,7 +168,7 @@
   border: none;
   padding: 0;
   color: var(--color-primary);
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
   cursor: pointer;
   text-align: left;
 }
@@ -180,7 +180,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   margin-bottom: var(--space-3);
 }
@@ -188,11 +188,11 @@
   color: var(--color-text-primary);
 }
 .study-intake-form__inline-fact .study-intake-form__link-btn {
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
 }
 
 .study-intake-form__template-preview-label {
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   margin-bottom: var(--space-2);
 }
@@ -200,7 +200,7 @@
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
-  font-size: 0.88rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-primary);
   margin-bottom: var(--space-2);
   cursor: pointer;

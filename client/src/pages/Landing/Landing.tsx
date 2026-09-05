@@ -17,6 +17,7 @@ import {
   FiZap,
 } from 'react-icons/fi';
 import { useScrollReveal } from '../../hooks/useScrollReveal';
+import ThemeToggle from '../../components/common/ThemeToggle/ThemeToggle';
 import './Landing.css';
 
 const FEATURES = [
@@ -173,6 +174,7 @@ export default function Landing() {
           </span>
         </div>
         <div className="landing-nav__actions">
+          <ThemeToggle />
           <Link to="/login" className="landing-nav__login">
             Log in
           </Link>

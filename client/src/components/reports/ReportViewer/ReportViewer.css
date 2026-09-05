@@ -1,8 +1,80 @@
 .report-viewer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* -------------------------------------------------------------------- */
+/* Toolbar -- zoom + edit, sits above the "page" and is never itself     */
+/* affected by zoom.                                                    */
+/* -------------------------------------------------------------------- */
+.report-viewer__toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.report-viewer__zoom {
+  display: flex;
+  align-items: center;
+  gap: 2px;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  padding: 3px;
+}
+.report-viewer__zoom button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-pill);
+  padding: 6px 8px;
+}
+.report-viewer__zoom button:hover:not(:disabled) {
+  background: var(--color-surface-alt);
+  color: var(--color-text-primary);
+}
+.report-viewer__zoom button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+.report-viewer__zoom-value {
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  min-width: 44px;
+  color: var(--color-text-primary) !important;
+}
+
+/* -------------------------------------------------------------------- */
+/* The "page" -- a distinct sheet of paper, independent of the app's own */
+/* card chrome, so what's on screen reads as the actual document rather  */
+/* than a form embedded in the app.                                      */
+/* -------------------------------------------------------------------- */
+.report-viewer__page-wrap {
+  overflow: auto;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  padding: var(--space-6) var(--space-4);
+}
+
+.report-viewer__page {
+  /* `zoom` (not `transform: scale`) so the browser reflows at the zoomed size --
+     no manual height/overflow compensation needed to avoid clipped or blank space. */
+  zoom: var(--report-zoom, 1);
+  max-width: 780px;
+  margin: 0 auto;
+  background: var(--report-bg-color, var(--color-surface));
+  color: var(--report-text-color, var(--color-text-primary));
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
   overflow: hidden;
 }
 
@@ -11,19 +83,33 @@
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-5);
-  border-bottom: 3px solid var(--report-accent, var(--color-primary));
-  background: var(--color-surface-alt);
+  padding: var(--space-5) var(--space-5) var(--space-4);
+  border-bottom: 1.5px solid var(--report-text-color, var(--color-text-primary));
+}
+
+/* One font size, one color, for every element of the report document below -- a
+   standard printed report doesn't mix sizes/colors between the header, id block,
+   headings, and footer. --report-title-size is the one intentional exception: a single
+   shared larger size for the org name + exam title (the two "letterhead title"
+   elements), the same way a real report's institution name is bigger than its body
+   text, without introducing a second arbitrary size. */
+.report-viewer__page {
+  --report-title-size: calc(var(--report-font-size, 1rem) * 1.35);
+  font-family: var(--font-ui);
 }
 
 .report-viewer__org {
-  font-size: 1.1rem;
+  font-size: var(--report-title-size);
   font-weight: 700;
-  color: var(--report-accent, var(--color-primary));
+  /* `--report-accent` is UI chrome (buttons, active states) -- a standard printed report
+     doesn't tint headings/letterhead with it, only an org's own explicit
+     headerTextColor customization (falling back to the one shared text color, not the
+     accent) -- the only element in the document with its own color override. */
+  color: var(--report-header-text-color, var(--report-text-color, var(--color-text-primary)));
 }
 .report-viewer__tagline {
-  font-size: 0.82rem;
-  color: var(--color-text-secondary);
+  font-size: var(--report-font-size, 1rem);
+  color: var(--report-text-color, var(--color-text-primary));
   margin-top: 2px;
 }
 
@@ -32,7 +118,7 @@
   align-items: center;
   gap: var(--space-2);
   padding: var(--space-3) var(--space-5) 0;
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
   flex-wrap: wrap;
 }
@@ -42,15 +128,19 @@
   background: var(--color-surface);
   border-radius: var(--radius-pill);
   padding: 4px 12px;
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   font-weight: 600;
   cursor: pointer;
   color: var(--color-text-secondary);
 }
 .report-viewer__version-pill--active {
-  background: var(--report-accent, var(--color-primary));
-  border-color: var(--report-accent, var(--color-primary));
-  color: #fff;
+  /* Text-primary as the fill, surface as the text -- these two tokens are always
+     opposite-polarity by design (dark-on-light in light mode, light-on-dark in dark
+     mode), so this stays legible in both themes. A literal #fff here would become
+     invisible in dark mode, where --color-text-primary is itself near-white. */
+  background: var(--report-text-color, var(--color-text-primary));
+  border-color: var(--report-text-color, var(--color-text-primary));
+  color: var(--color-surface);
 }
 
 .report-viewer__change-note {
@@ -58,15 +148,57 @@
   padding: var(--space-3);
   background: var(--color-info-bg);
   border-radius: var(--radius-sm);
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-primary);
+}
+
+/* Patient / study identification block -- a bordered box of label/value pairs, the way a
+   printed RIS-generated report identifies the patient and study before any narrative
+   content (mirrors server/app/services/pdf_service.py's id_table exactly). */
+.report-viewer__idblock {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2) var(--space-5);
+  margin: var(--space-4) var(--space-5) 0;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--report-text-color, var(--color-text-primary));
+}
+.report-viewer__idblock > div {
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--report-font-size, 1rem);
+}
+.report-viewer__idblock dt {
+  color: var(--report-text-color, var(--color-text-primary));
+  font-weight: 600;
+  flex-shrink: 0;
+}
+.report-viewer__idblock dd {
+  color: var(--report-text-color, var(--color-text-primary));
+}
+
+.report-viewer__exam {
+  text-align: center;
+  padding: var(--space-4) var(--space-5) 0;
+}
+.report-viewer__department {
+  font-size: var(--report-font-size, 1rem);
+  font-weight: 700;
+  color: var(--report-text-color, var(--color-text-primary));
+  letter-spacing: 0.03em;
+}
+.report-viewer__exam-title {
+  font-size: var(--report-title-size);
+  font-weight: 700;
+  color: var(--report-text-color, var(--color-text-primary));
+  margin-top: 2px;
 }
 
 .report-viewer__document {
   padding: var(--space-5);
-  font-family: var(--font-document);
+  font-size: var(--report-font-size, 1rem);
   line-height: 1.65;
-  color: var(--color-text-primary);
+  color: var(--report-text-color, var(--color-text-primary));
 }
 
 .report-viewer__section {
@@ -76,50 +208,162 @@
   margin-bottom: 0;
 }
 .report-viewer__section h3 {
-  font-family: var(--font-ui);
-  font-size: 0.76rem;
+  font-size: var(--report-font-size, 1rem);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: var(--report-accent, var(--color-primary));
+  color: var(--report-text-color, var(--color-text-primary));
+  text-decoration: underline;
   margin-bottom: var(--space-2);
   font-weight: 700;
 }
 .report-viewer__section p {
   white-space: pre-wrap;
-  font-size: 1rem;
+  font-size: 1em;
+  margin: 0;
 }
-.report-viewer__section--summary p {
-  font-style: italic;
-  color: var(--color-text-secondary);
-  font-size: 0.98rem;
+
+/* Edit-in-place field -- an auto-growing, borderless textarea styled to match the static
+   <p> it replaces exactly (same font/size/line-height/margin), so switching into edit mode
+   doesn't change the document's look the way a boxed form input would. A dashed accent
+   outline (only on hover/focus) is the only hint that it's editable. */
+.report-viewer__field {
+  display: block;
+  width: 100%;
+  border: none;
+  outline: none;
+  background: transparent;
+  resize: none;
+  overflow: hidden;
+  padding: 2px 4px;
+  margin: -2px -4px;
+  border-radius: var(--radius-sm);
+  font-family: inherit;
+  font-size: 1em;
+  line-height: inherit;
+  color: inherit;
+  white-space: pre-wrap;
+}
+.report-viewer__field:hover {
+  box-shadow: 0 0 0 1px dashed transparent;
+  outline: 1px dashed var(--color-border-strong);
+}
+.report-viewer__field:focus {
+  outline: 1px dashed var(--report-accent, var(--color-primary));
+  background: var(--color-surface-alt);
+}
+.report-viewer__field:disabled {
+  opacity: 0.65;
+}
+.report-viewer__signature {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--space-5);
+  padding: 0 var(--space-5) var(--space-4);
+  margin-top: var(--space-4);
+}
+.report-viewer__signature-block {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--report-font-size, 1rem);
+}
+.report-viewer__signature-block p {
+  margin: 0;
+  font-weight: 600;
+}
+.report-viewer__signature-label {
+  font-size: var(--report-font-size, 1rem);
+  color: var(--report-text-color, var(--color-text-primary));
+  font-weight: 600;
+}
+.report-viewer__signature-block--line {
+  align-items: center;
+  min-width: 200px;
+}
+.report-viewer__signature-rule {
+  width: 100%;
+  border-top: 1px solid var(--report-text-color, var(--color-text-primary));
+  margin-bottom: 4px;
 }
 
 .report-viewer__footer {
   padding: var(--space-4) var(--space-5);
   border-top: 1px solid var(--color-border);
   background: var(--color-surface-alt);
-  font-family: var(--font-ui);
 }
 .report-viewer__footer span {
   display: block;
-  font-size: 0.76rem;
-  color: var(--color-text-muted);
+  font-size: var(--report-font-size, 1rem);
+  color: var(--report-text-color, var(--color-text-primary));
   margin-bottom: var(--space-1);
 }
 .report-viewer__footer p {
-  font-size: 0.72rem;
-  color: var(--color-text-muted);
+  font-size: var(--report-font-size, 1rem);
+  color: var(--report-text-color, var(--color-text-primary));
+  margin: 0 0 2px;
+}
+.report-viewer__footer-id {
+  margin-top: 4px !important;
+  font-weight: 600;
+}
+
+.report-viewer__locked-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--font-size-sm);
+  color: var(--color-success);
+  background: var(--color-success-bg);
+  border: 1px solid var(--color-success);
+  border-radius: var(--radius-pill);
+  padding: 5px 12px;
+}
+
+.report-viewer__editing-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.report-viewer__editing-hint {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-right: var(--space-2);
+}
+
+.report-viewer__edit-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.report-viewer__save-error {
+  color: var(--color-danger);
+  font-size: var(--font-size-sm);
+  margin: 0;
+  flex: 1 1 100%;
 }
 
 @media (max-width: 640px) {
+  .report-viewer__page-wrap {
+    padding: var(--space-3) var(--space-2);
+  }
   .report-viewer__header,
   .report-viewer__document,
   .report-viewer__footer {
     padding: var(--space-4);
   }
+  .report-viewer__idblock {
+    grid-template-columns: 1fr;
+    margin-left: var(--space-4);
+    margin-right: var(--space-4);
+  }
 
   /* The org name and the AI GENERATED / status badge fighting for space in one row
-     forced both to wrap awkwardly (e.g. "AI" / "GENERATED" on separate lines) — stack
+     forced both to wrap awkwardly (e.g. "AI" / "GENERATED" on separate lines) -- stack
      them instead so each gets the full width and wraps on its own terms, if at all. */
   .report-viewer__header {
     flex-direction: column;

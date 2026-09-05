@@ -40,7 +40,8 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
   const [patientResults, setPatientResults] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
 
-  const [newMrn, setNewMrn] = useState('');
+  // No MRN field: the server assigns a per-organization medical record number
+  // (`MRN-000123`) to every new patient — it shows on the report as "Patient ID".
   const [newName, setNewName] = useState('');
   const [newDob, setNewDob] = useState('');
   const [newSex, setNewSex] = useState<Sex>('unspecified');
@@ -53,6 +54,7 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
   const [modality, setModality] = useState<Modality>('x_ray');
   const [bodyPart, setBodyPart] = useState('');
   const [clinicalHistory, setClinicalHistory] = useState('');
+  const [referringPhysician, setReferringPhysician] = useState('');
   const [studyDate, setStudyDate] = useState(todayIso());
   // Defaults to today and isn't required to submit -- show it as a plain fact with a
   // "Change" link rather than an editable field everyone has to look past.
@@ -95,8 +97,8 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
       setError('Select a patient for this study.');
       return;
     }
-    if (patientMode === 'new' && (!newMrn.trim() || !newName.trim() || !newDob)) {
-      setError("The new patient's MRN, name, and date of birth are required.");
+    if (patientMode === 'new' && (!newName.trim() || !newDob)) {
+      setError("The new patient's name and date of birth are required.");
       return;
     }
     if (!bodyPart.trim()) {
@@ -116,7 +118,6 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
           newPatient:
             patientMode === 'new'
               ? {
-                mrn: newMrn.trim(),
                 name: newName.trim(),
                 dateOfBirth: newDob,
                 sex: newSex,
@@ -127,6 +128,7 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
           modality,
           bodyPart: bodyPart.trim(),
           clinicalHistory: clinicalHistory.trim() || undefined,
+          referringPhysician: referringPhysician.trim() || undefined,
           studyDate,
           templateId,
           runAnalysis,
@@ -180,9 +182,6 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
               <div className="study-intake-form__new-patient">
                 <div className="study-intake-form__row">
                   <TextField label="Full name" value={newName} onChange={(e) => setNewName(e.target.value)} required />
-                  <TextField label="MRN" value={newMrn} onChange={(e) => setNewMrn(e.target.value)} required />
-                </div>
-                <div className="study-intake-form__row">
                   <TextField
                     label="Date of birth"
                     type="date"
@@ -190,6 +189,8 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
                     onChange={(e) => setNewDob(e.target.value)}
                     required
                   />
+                </div>
+                <div className="study-intake-form__row">
                   <Select label="Sex" value={newSex} onChange={(e) => setNewSex(e.target.value as Sex)} options={SEX_OPTIONS} />
                 </div>
                 {showContactFields ? (
@@ -223,6 +224,12 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
                 required
               />
             </div>
+            <TextField
+              label="Referring physician (optional)"
+              placeholder="Doctor who ordered this study"
+              value={referringPhysician}
+              onChange={(e) => setReferringPhysician(e.target.value)}
+            />
             {isEditingDate ? (
               <TextField
                 label="Study date"

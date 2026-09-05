@@ -22,7 +22,7 @@
 }
 
 .template-form__preview-label {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   font-weight: 600;
   color: var(--color-text-primary);
   margin-bottom: var(--space-2);

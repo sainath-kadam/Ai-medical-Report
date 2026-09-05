@@ -92,8 +92,9 @@ Consequences every repository/service/router must follow:
 
 ## 2a. Trial & billing (subscription gating) — new, not in the original spec
 
-Signup is fully self-serve into a time- and volume-limited free trial; there is no
-manual-activation step. A real Stripe subscription is the only way out of the trial.
+Signup is fully self-serve into a time- and volume-limited free trial. Out of the trial
+there are two doors: a real Stripe subscription (below), or an access period a
+`system_admin` grants by hand (§2c — e.g. paid by invoice). Neither: the org is read-only.
 
 - On signup/first Google sign-in (`AuthService.provision_org_and_admin_user` — public,
   not underscore-prefixed, since §2b's platform domain reuses it too), the new
@@ -105,13 +106,15 @@ manual-activation step. A real Stripe subscription is the only way out of the tr
   `POST /analysis/studies/{id}/analyze` is blocked with **HTTP 402**
   (`AppError.payment_required`) until the organization pays — error code `TRIAL_EXPIRED`
   (trial over, no active subscription) or `TRIAL_DAILY_LIMIT_REACHED` (still trialing,
-  daily cap hit). Enforced by `app/core/subscription.py::require_active_subscription`, an
-  extra `Depends()` on the analyze route alongside the existing role check; no other
-  route is gated by it.
+  daily cap hit; `ACCESS_EXPIRED` / `ORGANIZATION_SUSPENDED` per §2c). Enforced by
+  `app/core/subscription.py::require_active_subscription` on the analyze route (and
+  `POST /studies` when it also runs analysis). Every other write route is covered by the
+  broader read-only gate of §2c, which uses the same evaluator and the same codes.
 - Payment is via Stripe Checkout, new route domain `billing` (§9): `POST
   /billing/checkout` (`org_admin`/`doctor`, creates a Stripe Checkout session for the
   org, returns `{checkoutUrl}`), `GET /billing/status` (any authenticated user, returns
-  `{subscriptionStatus, trialEndsAt, billingConfigured}`), `POST /billing/webhook` (no
+  `{subscriptionStatus, trialEndsAt, accessEndsAt, isSuspended, access, billingConfigured}`
+  — `access` per §2c), `POST /billing/webhook` (no
   auth — called by Stripe's own servers, gated only by the Stripe-signed payload verified
   via `STRIPE_WEBHOOK_SECRET`, never a bearer token). The webhook handles
   `checkout.session.completed` (sets `subscriptionStatus: "active"`, stores
@@ -156,12 +159,50 @@ separate platform-level audit log is a reasonable future addition, not done here
 Creating an organization IS logged (`ORGANIZATION_CREATED_BY_ADMIN`), against the new
 org's own id, since one now exists.
 
-There is currently no UI/route to list or manage existing organizations — only to create
-new ones (a deliberate v1 scope limit, not an oversight).
+Listing and managing existing organizations (access periods, suspension) is §2c.
+
+## 2c. Organization access management & read-only mode — new, not in the original spec
+
+An organization is **writable** when, checked in this order by
+`app/core/subscription.py::evaluate_access` (the single source of truth — every response
+that carries an organization attaches its result as `access: {writable, reason, source,
+endsAt}`):
+
+1. it is not `isSuspended` (a suspended org is never writable, whatever else is true);
+2. `subscriptionStatus == "active"` (Stripe) → `source: "subscription"`, no end date;
+3. `accessEndsAt` is in the future (a period a `system_admin` granted by hand) → `"manual"`;
+4. `subscriptionStatus == "trial"` and `trialEndsAt` is in the future → `"trial"`.
+
+Otherwise `writable: false`, with `reason` = `ORGANIZATION_SUSPENDED` | `ACCESS_EXPIRED`
+(a manual period existed and passed) | `TRIAL_EXPIRED`.
+
+**Read-only mode.** While not writable, every `POST`/`PATCH`/`PUT`/`DELETE` under `users`,
+`organizations`, `patients`, `studies`, `uploads`, `intake`, `analysis`, `reports`,
+`templates` returns **402** with the `reason` as its error code, from one router-level
+dependency (`require_writable_organization`, attached in `app/api/router.py`). `GET`s,
+`auth/*` (login keeps working), `billing/*` (paying is the way back in), `dashboard`,
+`audit-logs`, `notifications` and `platform` are not gated. The frontend explains the state
+with `ReadOnlyBanner` (from `organization.access`) and otherwise relies on those 402s.
+
+**Platform routes** (`system_admin` only, alongside §2b's):
+- `GET /platform/organizations?page&pageSize&search` → paginated organizations, each with
+  `access`, `userCount`, `reportCount` and the platform-only `accessNote`.
+- `GET /platform/organizations/{id}` → `{organization (same shape), users[]}` (no hashes).
+- `PATCH /platform/organizations/{id}/access` — partial body `{accessEndsAt?: datetime|null,
+  isSuspended?: bool, accessNote?: string|null, plan?: free|pro|enterprise}` →
+  `{organization}`. Audit-logged against that organization as `ORGANIZATION_ACCESS_UPDATED`
+  (metadata: field names + the new access values, never the note), so the org's own admins
+  see in their audit trail that the platform changed their access and when.
+- `GET /platform/system-admins` → every platform-wide account.
+
+`accessNote` is returned only by `platform/*` routes; `/auth/me`, `/organizations/me` and
+the login/signup payloads strip it (`subscription.with_access`).
 
 ## 3. RBAC matrix (spec §8), enforced centrally in `app/core/security.py`
 
-`system_admin` sits outside this matrix entirely — see §2b for its (single) route domain.
+`system_admin` sits outside this matrix entirely — see §2b/§2c for its route domain (create
+organizations, list/inspect them, grant access periods, suspend). The matrix below also
+assumes the organization is writable (§2c): in read-only mode every write row is refused.
 For every other role, the matrix collapses to which one of `org_admin`/`doctor` (or both)
 an action requires:
 
@@ -190,8 +231,9 @@ All tables have `organizationId` (except `users`/`organizations` themselves, and
 **organizations**: `id, name, logoUrl, address, contactEmail, contactPhone, website,
 plan(free|pro|enterprise), highAccuracyMode(bool), reportHeader, reportFooter,
 primaryColor, createdBy, subscriptionStatus(trial|active|expired), trialEndsAt,
-stripeCustomerId?, stripeSubscriptionId?, createdAt, updatedAt` (the four
-subscription/trial fields are new — see §2a)
+stripeCustomerId?, stripeSubscriptionId?, accessEndsAt?, isSuspended, accessNote?,
+createdAt, updatedAt` (the four subscription/trial fields are new — see §2a; the three
+platform-managed access fields are §2c)
 
 **users**: `id, name, email(unique,index), passwordHash?, googleId?, avatarUrl,
 role(org_admin|doctor|system_admin), organizationId(index)?, isActive, emailVerifiedAt?,
@@ -199,7 +241,8 @@ createdAt, updatedAt` (`organizationId` is `null` only for `role: system_admin` 
 every other role always has a real one)
 
 **patients** (NEW entity — did not exist in the old Node app): `id, organizationId(index),
-mrn (medical record number, unique per org), name, dateOfBirth, sex(male|female|other|
+mrn (medical record number, unique per org; optional on create — the server assigns a
+sequential `MRN-000123` when omitted), name, dateOfBirth, sex(male|female|other|
 unspecified), contactPhone?, contactEmail?, createdBy, createdAt, updatedAt`
 
 **studies** (renamed from old `Scan`, now references a Patient instead of an embedded
@@ -262,7 +305,25 @@ class BaseReportGenerationProvider(ABC):
     async def revise(self, findings: StructuredFindings, sections, context, previous: GeneratedContent,
                       instruction: str, target_sections: list[str], high_accuracy: bool) -> GeneratedContent: ...
     async def classify_change_request(self, instruction: str, sections) -> ChangeRequestClassification: ...
+    async def summarize_findings(self, organization_name: str, context: StudyContext,
+                                  findings: StructuredFindings, high_accuracy_mode: bool = False) -> str: ...
 ```
+
+**Pre-report summary step (new).** `summarize_findings()` distills `findings` into a
+short summary, run concurrently with `generate()` (`asyncio.gather`) — its result always
+wins for `GeneratedContent.summary`. Separate method so it can use a different model:
+Gemini splits `GEMINI_IMAGING_MODEL`/`GEMINI_SUMMARY_MODEL` (both default `gemini-3.8-flash`)
+from `GEMINI_MODEL` (default `gemini-3.6-flash`, used by everything else), and while the
+organization's `highAccuracyMode` is on runs image interpretation and this summary on
+`GEMINI_HIGH_ACCURACY_MODEL` (default `gemini-3.1-pro-preview`, paid plan; falls back to
+the standard model on a free key) — report text is never escalated. `model_used` on both
+`StructuredFindings` and `GeneratedContent` names the model that actually answered
+(`analysis_jobs.imagingModel` / `reportModel`), fallback included. Anthropic runs the
+summary on the `fast` tier regardless. Not used by `apply_change_request`/`revise()` (a change-request
+already carries the previous summary forward).
+
+**Gemini calls must use the SDK's async surface** (`client.aio.models.generate_content`,
+awaited) — the sync client blocks this single-process server's whole event loop per call.
 
 `app/ai/providers/anthropic_provider.py` implements BOTH interfaces using the `anthropic`
 Python SDK, carrying over the existing tiered-model strategy from the old
@@ -341,7 +402,7 @@ intake:      POST /parse [org_admin/doctor] — chat-intake field extraction, no
 analysis:    POST /studies/{id}/analyze   GET /jobs/{jobId}   GET /studies/{id}/jobs
 reports:     GET /  GET /{id}  GET /{id}/versions  PATCH /{id}
              POST /{id}/change-request  POST /{id}/regenerate
-             POST /{id}/finalize  GET /{id}/pdf
+             POST /{id}/finalize  POST /{id}/amend  GET /{id}/pdf
 templates:   GET /  POST /  GET /{id}  PATCH /{id}  DELETE /{id}
 dashboard:   GET /stats   GET /recent-activity
 audit-logs:  GET /                                                       [org_admin]

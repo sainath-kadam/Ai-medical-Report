@@ -40,7 +40,7 @@
 }
 
 .stat-card__label {
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
 }
 
@@ -52,6 +52,6 @@
 }
 
 .stat-card__hint {
-  font-size: 0.76rem;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }

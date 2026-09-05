@@ -48,8 +48,7 @@ export function defaultValues(): TemplateFormValues {
     ],
     footer: {
       text: '',
-      disclaimer:
-        'This report was drafted with AI assistance and has been reviewed and approved by a licensed physician.',
+      disclaimer: '',
     },
     accentColor: '#0E7C86',
     style: { headerTextColor: '#0E7C86', backgroundColor: '#FFFFFF', contentTextColor: '#101828', fontSize: 10.5 },

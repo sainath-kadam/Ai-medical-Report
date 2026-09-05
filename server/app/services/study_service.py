@@ -143,6 +143,7 @@ class StudyService:
             "bodyPart": payload.body_part,
             "clinicalHistory": payload.clinical_history,
             "studyDate": payload.study_date.isoformat(),
+            "referringPhysician": payload.referring_physician,
             "status": "uploaded",
             "assignedDoctorId": None,
             "files": [],
@@ -178,6 +179,7 @@ class StudyService:
         body_part: str,
         clinical_history: str | None,
         study_date: str,
+        referring_physician: str | None = None,
         template_id: str | None,
         file: UploadFile,
         run_analysis: bool,
@@ -210,6 +212,7 @@ class StudyService:
             bodyPart=body_part,
             clinicalHistory=clinical_history,
             studyDate=study_date,
+            referringPhysician=referring_physician,
             templateId=template_id,
         )
         study = await self.create_study(current_user, study_payload, ip=ip, user_agent=user_agent)
@@ -260,6 +263,8 @@ class StudyService:
             update["clinicalHistory"] = payload.clinical_history
         if payload.study_date is not None:
             update["studyDate"] = payload.study_date.isoformat()
+        if payload.referring_physician is not None:
+            update["referringPhysician"] = payload.referring_physician
         if payload.template_id is not None:
             await self._require_template(payload.template_id, current_user.organization_id)
             update["templateId"] = payload.template_id

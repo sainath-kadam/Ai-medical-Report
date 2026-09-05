@@ -11,6 +11,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 > backend (read this first). `CONTRACTS.md` — the exact wire contract: every route,
 > entity shape, RBAC matrix. This file is deliberately short — commands plus the handful
 > of facts that don't fit any of those.
+>
+> Deploying (Netlify frontend + Render backend, every env var, platform gotchas):
+> `DEPLOY.md`, driven by `netlify.toml` and `render.yaml` at the repo root.
 
 ## Commands
 
@@ -21,7 +24,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 cd server && python -m venv .venv && source .venv/bin/activate && pip install -r requirements.txt
 
 # Run the API (needs Postgres reachable; see docker-compose.yml for a local instance.
-# Tables are created automatically at startup — no separate migration step)
+# Tables are created automatically at startup, and columns newly added to a model are
+# ALTERed onto existing tables — see app/database/schema_sync.py — so there is no
+# separate migration step. Anything beyond "add a nullable/defaulted column" still
+# needs a real migration.)
 uvicorn app.main:app --reload --port 8000
 # API docs auto-generated at /docs (Swagger) and /redoc once running.
 
@@ -68,14 +74,18 @@ PostgreSQL backend, React/Vite frontend, AI analysis and report change-requests 
 synchronously in-request (no background job queue — a deliberate, temporary
 simplification, see `README.md`), pluggable AI provider (Gemini by default, or Anthropic
 or a zero-cost mock)
-and storage provider (local disk or S3). Full structure/flow detail: `README.md`. Exact
+and storage provider (local disk, Cloudinary, Firebase, or S3 — optionally chained as
+primary + fallback via `STORAGE_FALLBACK_PROVIDER`). Full structure/flow detail: `README.md`. Exact
 wire contract: `CONTRACTS.md`.
 
 Every doctor-facing account (`org_admin`/`doctor` — there is no patient login/portal) gets
 a free trial at signup (`TRIAL_DAYS`, default 3 days, capped at `TRIAL_DAILY_REPORT_LIMIT`
-AI reports/day, default 100 — see `.env.example`). Generating a report after the trial ends requires an
-active Stripe subscription; `server/app/core/subscription.py` enforces this,
-`server/app/api/billing/` handles checkout + the Stripe webhook.
+AI reports/day, default 100 — see `.env.example`). After the trial an organization is writable only
+with an active Stripe subscription or an access period a `system_admin` granted by hand
+(`PATCH /platform/organizations/{id}/access`); otherwise it is **read-only** — every write
+route 402s, reads and login still work. `server/app/core/subscription.py` is the single
+evaluator + gate (attached router-wide in `app/api/router.py`), `server/app/api/billing/`
+handles checkout + the Stripe webhook, `server/app/api/platform/` is the system_admin's side.
 
 ## The one thing every file assumes you already know
 

@@ -16,20 +16,87 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import AppError
 from app.core.security import hash_password
+from app.core.subscription import with_access
+from app.repositories.organization_repository import OrganizationRepository
 from app.repositories.user_repository import UserRepository
-from app.schemas.platform import CreateOrganizationRequest, InviteSystemAdminRequest
+from app.schemas.common import PaginationParams
+from app.schemas.platform import CreateOrganizationRequest, InviteSystemAdminRequest, UpdateOrganizationAccessRequest
 from app.services.audit_service import AuditService
 from app.services.auth_service import AuthService
-from app.utils.ids import to_public
+from app.utils.ids import to_public, to_public_list
 from app.utils.passwords import generate_temp_password, without_password_hash
+from app.utils.response import paginated
 
 
 class PlatformService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.users = UserRepository(db)
+        self.orgs = OrganizationRepository(db)
         self.auth = AuthService(db)
         self.audit = AuditService(db)
+
+    # ------------------------------------------------------------------
+    # Managing existing organizations (CONTRACTS.md §2c)
+    # ------------------------------------------------------------------
+
+    def _org_summary(self, org_doc: dict[str, Any], counts: dict[str, int]) -> dict[str, Any]:
+        """Public org + evaluated `access` + usage counts. `accessNote` is platform-only and
+        stays in here on purpose — this shape is only ever returned to a system_admin."""
+        return {**to_public(with_access(org_doc, include_platform_fields=True)), **counts}
+
+    async def list_organizations(self, pagination: PaginationParams) -> dict[str, Any]:
+        skip = (pagination.page - 1) * pagination.page_size
+        items, total = await self.orgs.list_all(search=pagination.search, skip=skip, limit=pagination.page_size)
+        counts = await self.orgs.usage_counts([o["_id"] for o in items])
+        return paginated([self._org_summary(o, counts[o["_id"]]) for o in items], pagination.page, pagination.page_size, total)
+
+    async def get_organization(self, organization_id: str) -> dict[str, Any]:
+        """One organization with its access state, usage counts and member roster (no
+        password hashes) — what the platform detail page shows."""
+        org = await self.orgs.find_by_id(organization_id)
+        if org is None:
+            raise AppError.not_found("Organization not found", "ORGANIZATION_NOT_FOUND")
+        counts = await self.orgs.usage_counts([organization_id])
+        members, _ = await self.users.list_by_organization(organization_id, 0, 200)
+        return {
+            "organization": self._org_summary(org, counts[organization_id]),
+            "users": to_public_list([without_password_hash(u) for u in members]),
+        }
+
+    async def update_access(
+        self, organization_id: str, payload: UpdateOrganizationAccessRequest, actor_user_id: str
+    ) -> dict[str, Any]:
+        """The system_admin's lever over an organization's access: grant/clear a manual
+        access period, suspend/unsuspend, annotate, relabel the plan. Audit-logged against
+        the target organization (action `ORGANIZATION_ACCESS_UPDATED`) so the org's own
+        admins can see in their audit trail *that* the platform changed their access, and
+        when — metadata carries field names and the new access values, never the note."""
+        update = payload.model_dump(by_alias=True, exclude_unset=True)
+        if not update:
+            raise AppError.bad_request("Nothing to update", "EMPTY_UPDATE")
+        org = await self.orgs.update(organization_id, update)
+        if org is None:
+            raise AppError.not_found("Organization not found", "ORGANIZATION_NOT_FOUND")
+
+        loggable = {k: v for k, v in update.items() if k != "accessNote"}
+        await self.audit.log(
+            organization_id=organization_id,
+            user_id=actor_user_id,
+            action="ORGANIZATION_ACCESS_UPDATED",
+            resource_type="organization",
+            resource_id=organization_id,
+            metadata={"fields": sorted(update.keys()), **{k: (v.isoformat() if hasattr(v, "isoformat") else v) for k, v in loggable.items()}},
+        )
+        counts = await self.orgs.usage_counts([organization_id])
+        return {"organization": self._org_summary(org, counts[organization_id])}
+
+    async def list_system_admins(self) -> list[dict[str, Any]]:
+        return to_public_list([without_password_hash(u) for u in await self.users.list_by_role("system_admin")])
+
+    # ------------------------------------------------------------------
+    # Onboarding (CONTRACTS.md §2b)
+    # ------------------------------------------------------------------
 
     async def create_organization(self, payload: CreateOrganizationRequest, actor_user_id: str) -> dict[str, Any]:
         """Creates a new organization AND its first org_admin user in one call — reuses

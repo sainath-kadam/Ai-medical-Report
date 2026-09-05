@@ -21,6 +21,15 @@ services:
     build: ./server
     container_name: medscan-server
     restart: unless-stopped
+    # Public resolvers for the API container's *external* lookups (Cloudinary, Gemini,
+    # Stripe). Docker's embedded DNS still resolves the `postgres` service name; this only
+    # changes where it forwards everything else. Without it, lookups go through the Docker
+    # Desktop VM's resolver, which was seen live returning "Temporary failure in name
+    # resolution" for api.cloudinary.com while the host resolved it in 3 ms — every study
+    # image read then failed as "File not found in storage".
+    dns:
+      - 8.8.8.8
+      - 1.1.1.1
     depends_on:
       postgres:
         condition: service_healthy

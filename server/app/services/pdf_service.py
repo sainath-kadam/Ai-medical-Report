@@ -1,16 +1,27 @@
 """Renders a report version to a downloadable/printable PDF (spec §27), using the
-organization's configured template (header/accent color/doctor-info toggles/footer
-disclaimer). Ported from the original Node prototype's pdf.service.ts layout, using
-reportlab's Platypus flowables instead of raw canvas calls so section text wraps properly.
+organization's configured template (header/doctor-info toggles/footer text). Body text is
+always plain/neutral (no color) — the template's `accentColor` is UI chrome only (buttons,
+active states), never used here. Section headings are bold + underlined + plain black, and
+the patient/study block is a bordered box, both matching a real hospital-issued report's
+convention (not a stylistic accent).
+Ported from the original Node prototype's pdf.service.ts layout, using reportlab's
+Platypus flowables instead of raw canvas calls so section text wraps properly.
 
 Layout follows the conventional structured-radiology-report shape (facility header ->
 patient/study identification block -> department/exam title -> clinical indication ->
 comparison -> technique -> findings -> impression -> recommendations -> signature ->
-disclaimer), matching what a radiologist would recognize from a real PACS/RIS-generated
+footer), matching what a radiologist would recognize from a real PACS/RIS-generated
 report rather than a generic document.
 
-Every non-finalized report gets the mandatory preliminary-report banner (spec §22/§53) —
-this function does not accept a way to suppress it; that is intentional.
+By design, this renders identically regardless of `report status` — no AI/draft/
+finalized wording or banner in the document itself, on request (see git history if that
+behavior is ever needed again). Draft-vs-finalized status is only ever surfaced in the
+surrounding application UI (`ReportViewer`'s toolbar), never inside the report document
+or this PDF — once a PDF leaves the app there is no "surrounding UI" left to carry that
+signal, so a still-unreviewed draft downloaded as a PDF is not visually distinguishable
+from a finalized one. `report status` is still tracked and enforced everywhere else
+(immutable once `finalized`, gates which mutations are allowed) — only this rendering no
+longer reflects it.
 """
 
 from __future__ import annotations
@@ -29,28 +40,12 @@ from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from reportlab.platypus import HRFlowable, Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-_STATUS_LABELS = {
-    "ai_generated": "AI GENERATED",
-    "pending_review": "PENDING DOCTOR REVIEW",
-    "draft": "DRAFT",
-    "doctor_modified": "DOCTOR MODIFIED",
-    "finalized": "FINALIZED",
-    "amended": "AMENDED",
-}
-
 _MODALITY_LABELS = {"x_ray": "X-Ray", "ct": "CT", "mri": "MRI", "ultrasound": "Ultrasound", "other": "Other"}
 
 # A printed hospital/RIS report conventionally opens the body by announcing which
-# department read the study, in ALL CAPS, before the exam title itself. All of our defined
-# modalities are radiology-department studies; "other" is the one case that isn't
-# necessarily radiology, so it falls back to a more generic label.
-_DEPARTMENT_LABELS = {
-    "x_ray": "DEPARTMENT OF RADIO-DIAGNOSIS",
-    "ct": "DEPARTMENT OF RADIO-DIAGNOSIS",
-    "mri": "DEPARTMENT OF RADIO-DIAGNOSIS",
-    "ultrasound": "DEPARTMENT OF RADIO-DIAGNOSIS",
-}
-_DEFAULT_DEPARTMENT_LABEL = "DEPARTMENT OF DIAGNOSTIC IMAGING"
+# department read the study, in ALL CAPS, before the exam title itself -- one universal
+# label regardless of modality, matching real hospital reports (not split per-modality).
+_DEPARTMENT_LABEL = "DEPARTMENT OF RADIOLOGY"
 
 
 def _safe(text: Any) -> str:
@@ -105,40 +100,48 @@ def build_report_pdf(
     study: dict[str, Any],
     template: dict[str, Any],
     doctor_name: str,
-    report_status: str,
     report_id: str,
     version_number: int,
     logo_bytes: bytes | None = None,
 ) -> bytes:
-    accent = template.get("accentColor") or "#0E7C86"
-    accent_color = colors.HexColor(accent)
-
     # Every style knob below falls back to the exact literal that was hardcoded here before
     # templates supported customization, so a template with no `style` data (every template
     # created before this feature existed) renders byte-for-byte as it always has.
     style = template.get("style") or {}
-    header_text_color = colors.HexColor(style["headerTextColor"]) if style.get("headerTextColor") else accent_color
     content_text_color = colors.HexColor(style["contentTextColor"]) if style.get("contentTextColor") else colors.HexColor("#101828")
+    # `accentColor` is a UI-chrome color (buttons, active states) — a standard printed
+    # report doesn't use it for body text/headings, only an org's own explicit
+    # `headerTextColor` customization (falling back to plain body text color, not accent).
+    header_text_color = colors.HexColor(style["headerTextColor"]) if style.get("headerTextColor") else content_text_color
     font_size = style.get("fontSize") or 10.5
     background_color = colors.HexColor(style["backgroundColor"]) if style.get("backgroundColor") else None
 
+    # One font size, one color, for every element of the report body -- a standard
+    # printed report doesn't mix sizes/colors between the header, id block, headings, and
+    # footer the way ad-hoc styling had drifted into doing. The only intentional
+    # exception is title_size (org name + exam title), a single shared larger size for
+    # the two "letterhead title" elements -- exactly like a real report's institution
+    # name/exam title being bigger than its body text, still just one size between them.
+    title_size = font_size * 1.7
     styles = getSampleStyleSheet()
     body_style = ParagraphStyle("Body", parent=styles["Normal"], fontSize=font_size, leading=font_size + 4.5, textColor=content_text_color)
     heading_style = ParagraphStyle(
-        "SectionHeading", parent=styles["Heading3"], textColor=accent_color, spaceAfter=4, spaceBefore=6
+        "SectionHeading", parent=body_style, fontName="Helvetica-Bold", spaceAfter=4, spaceBefore=6
     )
-    meta_style = ParagraphStyle("Meta", parent=styles["Normal"], fontSize=10, textColor=colors.HexColor("#475467"))
-    header_meta_style = ParagraphStyle("HeaderMeta", parent=styles["Normal"], fontSize=10, textColor=header_text_color)
-    org_style = ParagraphStyle("Org", parent=styles["Heading1"], textColor=header_text_color)
-    label_style = ParagraphStyle("MetaLabel", parent=body_style, fontName="Helvetica-Bold", fontSize=9, leading=12)
-    value_style = ParagraphStyle("MetaValue", parent=body_style, fontSize=9, leading=12)
+    meta_style = ParagraphStyle("Meta", parent=body_style)
+    header_meta_style = ParagraphStyle("HeaderMeta", parent=body_style)
+    # Org name keeps its own text color (an org's explicit headerTextColor customization,
+    # falling back to the one shared content color) -- every other element always uses
+    # the shared content color, no separate customization point.
+    org_style = ParagraphStyle("Org", parent=body_style, fontName="Helvetica-Bold", fontSize=title_size, leading=title_size + 4, textColor=header_text_color)
+    label_style = ParagraphStyle("MetaLabel", parent=body_style, fontName="Helvetica-Bold")
+    value_style = ParagraphStyle("MetaValue", parent=body_style)
     department_style = ParagraphStyle(
-        "Department", parent=styles["Normal"], fontName="Helvetica-Bold", fontSize=10.5,
-        leading=14, alignment=TA_CENTER, textColor=content_text_color,
+        "Department", parent=body_style, fontName="Helvetica-Bold", alignment=TA_CENTER,
     )
     exam_title_style = ParagraphStyle(
-        "ExamTitle", parent=styles["Heading2"], alignment=TA_CENTER, textColor=content_text_color,
-        spaceBefore=2, spaceAfter=4,
+        "ExamTitle", parent=body_style, fontName="Helvetica-Bold", fontSize=title_size, leading=title_size + 4,
+        alignment=TA_CENTER, spaceBefore=2, spaceAfter=4,
     )
 
     buffer = io.BytesIO()
@@ -165,20 +168,7 @@ def build_report_pdf(
         elements.extend(header_text_flowables)
 
     elements.append(Spacer(1, 4))
-    elements.append(HRFlowable(width="100%", thickness=2, color=accent_color))
-    elements.append(Spacer(1, 10))
-
-    is_final = report_status == "finalized"
-    banner_text = (
-        "FINALIZED REPORT — reviewed and approved by a licensed physician"
-        if is_final
-        else "PRELIMINARY AI-ASSISTED REPORT — REQUIRES QUALIFIED MEDICAL REVIEW. Not a final diagnosis."
-    )
-    banner_bg = colors.HexColor("#EAF6E9") if is_final else colors.HexColor("#FFF4E5")
-    banner_fg = colors.HexColor("#1E5B33") if is_final else colors.HexColor("#8A5300")
-    banner_table = Table([[Paragraph(f"<b>{banner_text}</b>", ParagraphStyle("Banner", parent=body_style, textColor=banner_fg))]], colWidths=[doc.width])
-    banner_table.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), banner_bg), ("BOX", (0, 0), (-1, -1), 0.5, banner_fg), ("TOPPADDING", (0, 0), (-1, -1), 8), ("BOTTOMPADDING", (0, 0), (-1, -1), 8), ("LEFTPADDING", (0, 0), (-1, -1), 10)]))
-    elements.append(banner_table)
+    elements.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#101828")))
     elements.append(Spacer(1, 12))
 
     # ------------------------------------------------------------------
@@ -193,31 +183,32 @@ def build_report_pdf(
 
     def _id_row(label_a: str, value_a: str, label_b: str, value_b: str) -> list:
         return [
-            Paragraph(f"{label_a} :", label_style),
+            Paragraph(f"{label_a}:", label_style),
             Paragraph(_safe(value_a) or "—", value_style),
-            Paragraph(f"{label_b} :", label_style),
+            Paragraph(f"{label_b}:", label_style),
             Paragraph(_safe(value_b) or "—", value_style),
         ]
 
     id_table = Table(
         [
-            _id_row("Patient Name", patient.get("name", "Unknown"), "Patient ID", patient.get("mrn", "—")),
-            _id_row("Age / Sex", age_sex, "Date of Study", study.get("studyDate", "—")),
-            _id_row("Reviewing Physician", doctor_name, "Accession No.", accession),
+            _id_row("Patient ID", patient.get("mrn", "—"), "Patient Name", patient.get("name", "Unknown")),
+            _id_row("Age / Sex", age_sex, "Referring Physician", study.get("referringPhysician") or "—"),
+            _id_row("Study Date", study.get("studyDate", "—"), "Accession No.", accession),
         ],
-        colWidths=[38 * mm, (doc.width - 76 * mm) / 2, 38 * mm, (doc.width - 76 * mm) / 2],
+        colWidths=[42 * mm, (doc.width - 84 * mm) / 2, 42 * mm, (doc.width - 84 * mm) / 2],
     )
-    # Plain "label : value" pairs, no grid lines or cell shading -- a printed hospital/RIS
-    # report lays this block out as text, not a bordered form. Label column is wide enough
-    # for "Reviewing Physician :", the longest label, to stay on one line.
+    # A bordered box around plain "label : value" pairs -- matches a real hospital/RIS
+    # report's patient-identification block. Label column is wide enough for "Referring
+    # Physician :", the longest label, to stay on one line.
     id_table.setStyle(
         TableStyle(
             [
                 ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("TOPPADDING", (0, 0), (-1, -1), 3),
-                ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
-                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("TOPPADDING", (0, 0), (-1, -1), 4),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 4),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("BOX", (0, 0), (-1, -1), 0.75, colors.HexColor("#101828")),
             ]
         )
     )
@@ -230,10 +221,9 @@ def build_report_pdf(
     # hospital/RIS report announces the test before any narrative content, rather than a
     # small left-aligned "EXAMINATION" label.
     modality_label = _MODALITY_LABELS.get(study.get("modality"), study.get("modality", "").upper())
-    department_label = _DEPARTMENT_LABELS.get(study.get("modality"), _DEFAULT_DEPARTMENT_LABEL)
     exam_title = _safe(f"{modality_label} {study.get('bodyPart', '')}".strip().upper())
-    elements.append(Paragraph(department_label, department_style))
-    elements.append(Paragraph(f"<u>{exam_title}</u>", exam_title_style))
+    elements.append(Paragraph(_DEPARTMENT_LABEL, department_style))
+    elements.append(Paragraph(exam_title, exam_title_style))
     elements.append(Spacer(1, 4))
 
     if content.get("summary"):
@@ -276,8 +266,7 @@ def build_report_pdf(
     doctor_info = template.get("doctorInfo", {})
     elements.append(Spacer(1, 18))
     if doctor_info.get("showDoctorName", True):
-        left_label = "Electronically Verified by" if is_final else "Reported by"
-        left_lines = [Paragraph(f"<b>{left_label}</b>", meta_style), Paragraph(_safe(doctor_name), body_style)]
+        left_lines = [Paragraph("<b>Reported by</b>", meta_style), Paragraph(_safe(doctor_name), body_style)]
         right_lines: list = []
         if doctor_info.get("showSignatureLine", True):
             right_lines = [
@@ -295,21 +284,14 @@ def build_report_pdf(
         elements.append(Paragraph("_______________________________", body_style))
         elements.append(Paragraph("Signature", meta_style))
 
-    if is_final:
-        elements.append(Spacer(1, 6))
-        elements.append(Paragraph("Report finalized", ParagraphStyle("Finalized", parent=meta_style, textColor=colors.HexColor("#1E5B33"))))
-
     footer = template.get("footer", {})
     elements.append(Spacer(1, 20))
-    disclaimer_style = ParagraphStyle("Disclaimer", parent=styles["Normal"], fontSize=7.5, textColor=colors.HexColor("#94A3B8"), alignment=1)
-    disclaimer = footer.get("disclaimer") or (
-        "This report was drafted with AI assistance and has been reviewed and approved by a licensed physician. "
-        "It is not a substitute for independent clinical judgment."
-    )
-    elements.append(Paragraph(_safe(disclaimer), disclaimer_style))
+    disclaimer_style = ParagraphStyle("Disclaimer", parent=body_style, alignment=1)
+    if footer.get("disclaimer"):
+        elements.append(Paragraph(_safe(footer["disclaimer"]), disclaimer_style))
     if footer.get("text"):
         elements.append(Paragraph(_safe(footer["text"]), disclaimer_style))
-    elements.append(Paragraph(f"Report {_safe(report_id)} (version {version_number}) · Status: {_STATUS_LABELS.get(report_status, report_status)}", disclaimer_style))
+    elements.append(Paragraph(f"Report {_safe(report_id)} (version {version_number})", disclaimer_style))
 
     if background_color:
         on_page = partial(_draw_background, color=background_color)

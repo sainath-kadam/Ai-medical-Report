@@ -274,7 +274,6 @@ class TemplateService:
             study=study,
             template=template_dict,
             doctor_name=doctor_name,
-            report_status="pending_review",
             report_id="PREVIEW",
             version_number=1,
             logo_bytes=logo_bytes,
@@ -321,11 +320,7 @@ class TemplateService:
             "sections": [dict(section) for section in _DEFAULT_SECTIONS],
             "footer": {
                 "text": None,
-                "disclaimer": (
-                    "This report was generated with AI assistance and requires review and "
-                    "approval by a licensed physician before clinical use. It is not a "
-                    "substitute for independent clinical judgment."
-                ),
+                "disclaimer": None,
             },
             "accentColor": "#0E7C86",
             # A real (if all-null-fields) TemplateStyleSchema, not a bare None -- the frontend's

@@ -21,6 +21,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import AppError
+from app.core.subscription import evaluate_access
 from app.core.logging import get_logger
 from app.repositories.organization_repository import OrganizationRepository
 
@@ -68,9 +69,15 @@ class BillingService:
         org = await self.orgs.find_by_id(organization_id)
         if org is None:
             raise AppError.not_found("Organization not found", "ORGANIZATION_NOT_FOUND")
+        # `access` is the single evaluated answer to "can this org write right now, until
+        # when, and why" (app/core/subscription.py::evaluate_access) — the billing page
+        # renders from it instead of re-deriving the trial/Stripe/manual-period precedence.
         return {
             "subscriptionStatus": org["subscriptionStatus"],
             "trialEndsAt": org.get("trialEndsAt"),
+            "accessEndsAt": org.get("accessEndsAt"),
+            "isSuspended": bool(org.get("isSuspended")),
+            "access": evaluate_access(org).to_public(),
             "billingConfigured": settings.billing_configured,
         }
 

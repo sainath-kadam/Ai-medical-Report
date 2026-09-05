@@ -38,8 +38,22 @@ class StudyContext:
     patient_age: int | None = None
     patient_sex: str | None = None
     clinical_history: str | None = None
+    # The study's primary image (first upload). Kept for backward compatibility — every
+    # provider should read `all_images()` instead, which also covers the rest of the files.
     image_bytes: bytes | None = None
     image_mime_type: str | None = None
+    # Every viewable image on the study, in upload order, as (bytes, mime_type). A study is
+    # routinely more than one file (AP + lateral view, several CT slices, a follow-up added
+    # later), and the model must read them together as one examination — so a re-run after
+    # a new upload genuinely takes the new image into account in the next version.
+    images: list[tuple[bytes, str]] = field(default_factory=list)
+
+    def all_images(self) -> list[tuple[bytes, str]]:
+        if self.images:
+            return self.images
+        if self.image_bytes and self.image_mime_type:
+            return [(self.image_bytes, self.image_mime_type)]
+        return []
 
 
 @dataclass
@@ -48,6 +62,10 @@ class StructuredFindings:
     raw_summary: str = ""
     analyzable: bool = True
     unanalyzable_reason: str | None = None
+    # The model that actually produced these findings, when the provider knows (Gemini
+    # sets it — including when a fallback model served, see gemini_provider). Recorded on
+    # `analysis_jobs.imagingModel`; `None` means "use the provider's configured name".
+    model_used: str | None = None
 
 
 @dataclass
@@ -121,6 +139,30 @@ class BaseReportGenerationProvider(ABC):
 
     @abstractmethod
     async def summarize_for_notification(self, modality: str, body_part: str, summary: str) -> str: ...
+
+    @abstractmethod
+    async def summarize_findings(
+        self,
+        organization_name: str,
+        context: StudyContext,
+        findings: StructuredFindings,
+        high_accuracy_mode: bool = False,
+    ) -> str:
+        """Distills `findings` into a short (2-4 sentence), physician-facing clinical
+        summary, as its OWN call — run before `generate()` drafts the full report body.
+        `high_accuracy_mode` mirrors `analyze()`'s: this summary is the first thing the
+        physician reads, so a provider that tiers (Gemini -> GEMINI_HIGH_ACCURACY_MODEL)
+        escalates it together with image interpretation; a provider may also ignore it
+        (Anthropic keeps the fast tier). The caller (AnalysisService/ReportService) overwrites whatever `generate()`
+        produced for `GeneratedContent.summary` with this method's return value, so what a
+        physician sees in the report's Summary field is always exactly what this step
+        produced, not a second, independent guess from the full-report call. Kept as its
+        own provider method (rather than folded into `generate()`) so an implementation
+        can point it at a different, summary-specialized model — see
+        `GeminiReportProvider.summarize_findings` (GEMINI_SUMMARY_MODEL) — without
+        touching the model used for the rest of the report. Same safety rule as
+        `generate()`: never invent content beyond `findings`."""
+        ...
 
     @abstractmethod
     async def extract_intake(self, kind: Literal["patient", "study"], message: str, known: dict[str, str]) -> dict[str, str]:

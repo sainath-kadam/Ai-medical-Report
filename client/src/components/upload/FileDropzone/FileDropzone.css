@@ -34,7 +34,7 @@
 }
 
 .dropzone__hint {
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }
 
@@ -74,14 +74,14 @@
   flex: 1;
 }
 .dropzone__file-meta strong {
-  font-size: 0.9rem;
+  font-size: var(--font-size-base);
   color: var(--color-text-primary);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .dropzone__file-meta span {
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
 }
 

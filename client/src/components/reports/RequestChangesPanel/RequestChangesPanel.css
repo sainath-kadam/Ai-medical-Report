@@ -1,11 +1,11 @@
 .request-changes__title {
-  font-size: 1rem;
+  font-size: var(--font-size-lg);
   margin-bottom: var(--space-2);
   color: var(--color-text-primary);
 }
 
 .request-changes__hint {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   margin-bottom: var(--space-4);
 }
@@ -19,6 +19,8 @@
 
 .request-changes__form textarea {
   width: 100%;
-  min-height: 160px;
+  min-height: 140px;
   resize: vertical;
+  font-size: var(--font-size-sm);
+  line-height: 1.5;
 }

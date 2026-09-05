@@ -1,0 +1,179 @@
+/* Shared by the system_admin pages under pages/Platform/ (Organizations, OrganizationDetail,
+   SystemAdmins). CreateOrganization keeps its own older stylesheet. */
+
+.platform-page {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.platform-page__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+.platform-page__header h1 {
+  font-size: var(--font-size-2xl);
+  color: var(--color-text-primary);
+}
+.platform-page__header p {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+  margin-top: var(--space-1);
+}
+.platform-page__header-actions {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.platform-page__back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  align-self: flex-start;
+}
+.platform-page__back:hover {
+  color: var(--color-primary);
+}
+
+.platform-page__toolbar {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.platform-page__toolbar .ui-textfield,
+.platform-page__toolbar > div:first-child {
+  flex: 1;
+  min-width: 220px;
+}
+
+.platform-page__error {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+.platform-page__success {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+}
+
+.platform-page__loading {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-7) 0;
+}
+
+.platform-page__name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.platform-page__name-cell strong {
+  color: var(--color-text-primary);
+}
+.platform-page__muted {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.platform-page__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .platform-page__grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.platform-page__card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.platform-page__card h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-lg);
+  color: var(--color-text-primary);
+}
+.platform-page__card-hint {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.platform-page__facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+.platform-page__facts div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.platform-page__facts dt {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.platform-page__facts dd {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+.platform-page__access-state {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-alt, var(--color-bg));
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.platform-page__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.platform-page__quick-row {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+.platform-page__actions {
+  display: flex;
+  gap: var(--space-2);
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}
+.platform-page__danger-zone {
+  border-top: 1px solid var(--color-border);
+  padding-top: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}

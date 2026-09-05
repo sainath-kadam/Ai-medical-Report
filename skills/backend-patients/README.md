@@ -35,3 +35,9 @@ reduced-permission role left to carve out now that `technician` is gone).
   off it — a client can never supply its own `organization_id`, it's always derived from the
   authenticated caller. Every repository call is one of the `*_scoped` methods, so
   cross-tenant access is structurally impossible, not something re-checked per route.
+- **MRN is optional on create; the server generates it when absent.** `PatientCreateRequest.mrn`
+  is `str | None`; `create_patient` assigns `MRN-{count+1:06d}` per organization
+  (`_next_generated_mrn`) and, because the `(organizationId, mrn)` unique constraint is the
+  arbiter, simply retries with the next number on an `IntegrityError` — only a *caller-supplied*
+  MRN that collides is surfaced as `PATIENT_MRN_TAKEN`. The study-intake form no longer asks
+  for one; the standalone patient form offers it as an optional "Hospital MRN".

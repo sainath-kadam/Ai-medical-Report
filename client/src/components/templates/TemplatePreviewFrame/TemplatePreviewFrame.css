@@ -28,6 +28,6 @@
 }
 
 .template-preview-frame__error {
-  font-size: 0.82rem;
+  font-size: var(--font-size-sm);
   color: var(--color-danger);
 }

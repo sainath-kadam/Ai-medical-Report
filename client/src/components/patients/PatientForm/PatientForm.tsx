@@ -37,7 +37,7 @@ function defaultValues(): PatientFormValues {
  *  sending empty strings. */
 export function patientFormToPayload(values: PatientFormValues): PatientPayload {
   return {
-    mrn: values.mrn.trim(),
+    mrn: values.mrn.trim() || undefined,
     name: values.name.trim(),
     dateOfBirth: values.dateOfBirth || undefined,
     sex: values.sex,
@@ -77,11 +77,11 @@ export default function PatientForm({ initial, onSubmit, submitLabel = 'Save pat
     <form onSubmit={handleSubmit} className="patient-form">
       <div className="patient-form__grid">
         <TextField
-          label="MRN"
+          label="Hospital MRN (optional)"
           value={values.mrn}
           onChange={(e) => setValues((p) => ({ ...p, mrn: e.target.value }))}
-          placeholder="e.g. MRN-00123"
-          required
+          placeholder="Leave blank to assign one automatically"
+          hint="Only if your hospital already has a medical record number for this patient."
         />
         <TextField
           label="Full name"

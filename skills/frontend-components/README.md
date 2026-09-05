@@ -19,7 +19,8 @@ templates, upload).
   its own test file).
 - `patients/` — `PatientForm`.
 - `reports/` — `ReportCard` (list-view summary card), `ReportViewer` (renders one report
-  version using the org's template), `RequestChangesPanel` (the "ask AI to revise" form).
+  version using the org's template; also owns the inline "Edit" mode — see below),
+  `RequestChangesPanel` (the "ask AI to revise" form).
 - `studies/` — `NewStudyForm`.
 - `templates/` — `TemplateFieldsEditor`, `TemplateForm`, `TemplatePresetGallery`,
   `TemplatePreviewFrame` (live PDF preview + download button).
@@ -47,8 +48,19 @@ templates, upload).
   report's `ReportTemplate` (falling back to a default only if no template object is
   attached) — two organizations can and do see completely different report layouts.
   Don't hardcode section names or ordering into a report/template component.
+- **`ReportViewer`'s Edit button only renders on the current version.** `editable` is
+  parent-controlled (`StudyDetail`: `canManage && status !== 'finalized' && !isBusy`), but
+  editing is further restricted to `selectedVersion === report.currentVersion` since saving
+  (`onSave` → `PATCH /reports/{id}`) always merges onto the current version regardless of
+  which one is shown. Draft state lives inside `ReportViewer`; the network call is the
+  parent's `onSave` — same split as `RequestChangesPanel`'s `onSubmit`.
 - **`TempPasswordBanner` exists because the app has no SMTP configured** (see
   `CONTRACTS.md`) — it's the *only* place a newly-issued temporary password is ever
   displayed (right after inviting a user, or a system_admin creating an org's first
   admin), which is why it leads with a "this is the only time you'll see this" warning
   rather than being a generic credentials display.
+- **`layout/ReadOnlyBanner`** renders above every routed page inside `DashboardLayout`
+  whenever `organization.access.writable` is false (trial/access period lapsed or suspended
+  — CONTRACTS.md §2c), with a reason-specific message and, for org_admin, a link to
+  `/billing`. It explains the state; the server's 402s on every write are the enforcement, so
+  individual write buttons are not disabled per page.

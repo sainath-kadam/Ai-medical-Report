@@ -25,6 +25,7 @@ clinical text, patient names, or file contents (spec §31) — audit metadata is
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 from datetime import date, datetime, timezone
@@ -61,6 +62,28 @@ logger = get_logger(__name__)
 # `start_analysis` below and `POST /studies/intake` (via the same method).
 _IN_FLIGHT_STATUSES = ("queued", "preprocessing", "analyzing", "generating_report")
 
+# Upper bound on how many of a study's images go to the imaging model in one call — enough
+# for a multi-view plain film or a handful of key CT/MRI slices, while keeping a study with
+# hundreds of uploaded frames from producing an enormous (and expensive) request.
+MAX_ANALYSIS_IMAGES = 8
+
+
+async def load_study_images(files: list[dict[str, Any]]) -> list[tuple[bytes, str]]:
+    """Downloads every viewable image on a study (in upload order, capped at
+    MAX_ANALYSIS_IMAGES) as (bytes, mime_type) pairs for `StudyContext.images`. Shared by
+    `AnalysisService.run_analysis` and `ReportService.apply_change_request` so both analysis
+    paths see the same set of images — including anything uploaded after the first run.
+    Non-image files (video, raw DICOM) are skipped; if a study has none that qualify, the
+    first file is still sent so the provider can report it as unanalyzable itself."""
+    storage = get_storage()
+    image_files = [f for f in files if (f.get("mimeType") or "").startswith("image/")]
+    if not image_files and files:
+        image_files = files[:1]
+    images: list[tuple[bytes, str]] = []
+    for file in image_files[:MAX_ANALYSIS_IMAGES]:
+        images.append((await storage.download(file["storageKey"]), file.get("mimeType") or "application/octet-stream"))
+    return images
+
 # Mirrors the tier->model mapping `AnthropicImagingProvider`/`AnthropicReportProvider` use
 # internally (`app/ai/providers/anthropic_provider.py::_MODEL_FOR_TIER`, private to that
 # module) so the `analysis_jobs.imagingModel` field can be populated even though
@@ -78,12 +101,15 @@ _TIER_MODEL_MAP: dict[str, str] = {
 def _resolve_imaging_model(tier: str) -> str:
     """`get_imaging_provider()` (app/ai/base.py) picks the actual provider from
     `AI_PROVIDER`; this mirrors that same selection just to get a display-only model name
-    for `analysis_jobs.imagingModel` — it never affects which provider actually runs.
-    Only Anthropic is tiered; Gemini is a single model for everything."""
+    for `analysis_jobs.imagingModel` — it never affects which provider actually runs. Used
+    only when the provider didn't report `StructuredFindings.model_used` itself (Gemini
+    does, including which fallback actually served). For Gemini this mirrors
+    `gemini_provider._tiered`: the high-accuracy model when the org toggle is on, else the
+    standard imaging model."""
     if not settings.ai_configured:
         return "mock"
     if settings.ai_provider == "gemini":
-        return settings.gemini_model
+        return settings.gemini_high_accuracy_model if tier == "highAccuracy" else settings.gemini_imaging_model
     return _TIER_MODEL_MAP[tier]
 
 
@@ -144,7 +170,16 @@ class AnalysisService:
         actor_user_id = study.get("assignedDoctorId") or study["createdBy"]
         high_accuracy = bool(organization.get("highAccuracyMode"))
         files = study.get("files") or []
-        primary_file = files[0] if files else None
+
+        # A study may already have a report (re-run after uploading another image, or after
+        # a doctor's edits): the new analysis then becomes the NEXT VERSION of that report,
+        # not a second report row the UI would never surface. A finalized report is
+        # immutable, so it must be amended first — checked inside the try below so the
+        # failure lands on the job (and reaches the doctor) instead of leaving it queued.
+        existing_reports, _ = await self.reports.list_scoped(
+            organization_id, {"studyId": study_id}, sort=[("createdAt", -1)], skip=0, limit=1
+        )
+        existing_report = existing_reports[0] if existing_reports else None
 
         job = await self._acquire_job(study_id, organization_id)
         job_id = job["_id"]
@@ -171,6 +206,12 @@ class AnalysisService:
         )
 
         try:
+            if existing_report and existing_report["status"] == "finalized":
+                raise AppError.conflict(
+                    "This study's report is finalized. Amend the report first, then re-run the analysis.",
+                    "REPORT_FINALIZED",
+                )
+
             await self.studies.update_scoped(study_id, organization_id, {"status": "processing"})
             await self.jobs.update_scoped(
                 job_id,
@@ -183,11 +224,9 @@ class AnalysisService:
                 },
             )
 
-            image_bytes: bytes | None = None
-            image_mime_type: str | None = None
-            if primary_file:
-                image_bytes = await get_storage().download(primary_file["storageKey"])
-                image_mime_type = primary_file.get("mimeType")
+            # Every image on the study, not just the first upload — see load_study_images.
+            images = await load_study_images(files)
+            image_bytes, image_mime_type = images[0] if images else (None, None)
 
             context = StudyContext(
                 modality=study["modality"],
@@ -197,6 +236,7 @@ class AnalysisService:
                 clinical_history=study.get("clinicalHistory"),
                 image_bytes=image_bytes,
                 image_mime_type=image_mime_type,
+                images=images,
             )
 
             await self.jobs.update_scoped(job_id, organization_id, {"status": "analyzing"})
@@ -219,10 +259,12 @@ class AnalysisService:
             )
 
             tier = resolve_generation_tier(high_accuracy)
-            imaging_model = _resolve_imaging_model(tier)
+            imaging_model = findings.model_used or _resolve_imaging_model(tier)
             await self.jobs.update_scoped(
                 job_id, organization_id, {"status": "generating_report", "imagingModel": imaging_model}
             )
+
+            report_provider = get_report_provider()
 
             sections = [
                 TemplateSectionSpec(
@@ -235,12 +277,21 @@ class AnalysisService:
                 for section in template.get("sections", [])
             ]
 
-            generated = await get_report_provider().generate(
-                organization.get("name", ""), sections, context, findings, high_accuracy
+            # summarize_findings() (may run on a different, summary-specialized model —
+            # see GeminiReportProvider.summarize_findings / GEMINI_SUMMARY_MODEL) and
+            # generate() both read only `findings`, independently of each other, so they
+            # run concurrently rather than back-to-back — the report's summary field still
+            # ends up as exactly summarize_findings()'s result, never generate()'s own
+            # guess at it, same as before.
+            clinical_summary, generated = await asyncio.gather(
+                report_provider.summarize_findings(organization.get("name", ""), context, findings, high_accuracy),
+                report_provider.generate(organization.get("name", ""), sections, context, findings, high_accuracy),
             )
+            generated.summary = clinical_summary
 
+            next_version_number = (existing_report["currentVersion"] + 1) if existing_report else 1
             version = {
-                "versionNumber": 1,
+                "versionNumber": next_version_number,
                 "content": {
                     "summary": generated.summary,
                     "sections": [
@@ -252,21 +303,32 @@ class AnalysisService:
                 "author": "ai",
                 "generatedAt": datetime.now(timezone.utc).isoformat(),
                 "changeRequestNote": None,
-                "reason": None,
+                "reason": (
+                    f"AI analysis re-run on {len(images)} image{'s' if len(images) != 1 else ''}"
+                    if existing_report
+                    else None
+                ),
                 "aiModelUsed": generated.model_used,
             }
-            report = await self.reports.insert(
-                {
-                    "organizationId": organization_id,
-                    "studyId": study_id,
-                    "templateId": template["_id"],
-                    "versions": [version],
-                    "currentVersion": 1,
-                    "status": "ai_generated",
-                    "finalizedBy": None,
-                    "finalizedAt": None,
-                }
-            )
+            if existing_report:
+                report = await self.reports.append_version(
+                    existing_report["_id"], organization_id, version, new_status="ai_generated"
+                )
+                if report is None:
+                    raise AppError.not_found("Report not found", "REPORT_NOT_FOUND")
+            else:
+                report = await self.reports.insert(
+                    {
+                        "organizationId": organization_id,
+                        "studyId": study_id,
+                        "templateId": template["_id"],
+                        "versions": [version],
+                        "currentVersion": 1,
+                        "status": "ai_generated",
+                        "finalizedBy": None,
+                        "finalizedAt": None,
+                    }
+                )
 
             await self.studies.update_scoped(study_id, organization_id, {"status": "completed"})
 
@@ -302,7 +364,21 @@ class AnalysisService:
                 metadata={"studyId": study_id, "jobId": job_id, "modelUsed": generated.model_used},
             )
 
-            return to_public(report)
+            # Mirrors ReportService._enrich (app/services/report_service.py) so a report
+            # handed back from analysis/intake already carries `study` (with `patient` and
+            # signed-URL `files` nested) and `template` — the same shape a subsequent
+            # GET /reports/{id} would return — instead of forcing the frontend's very first
+            # render of a freshly generated report to fall back to a blank/untemplated look.
+            # Imported here, not at module level, since study_service imports
+            # AnalysisService itself — a top-level import here would be circular.
+            from app.services.study_service import with_signed_urls
+
+            public_report = to_public(report)
+            study_public = to_public(with_signed_urls(study))
+            study_public["patient"] = to_public(patient)
+            public_report["study"] = study_public
+            public_report["template"] = to_public(template)
+            return public_report
 
         except Exception as exc:
             # A DB-level failure earlier in this block (e.g. a constraint violation) leaves

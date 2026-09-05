@@ -56,3 +56,11 @@ request-level middleware (rate limiting, request-id/IP capture).
   calendar day) is capped at `settings.trial_daily_report_limit` — both failure paths raise
   `402 Payment Required` (`TRIAL_EXPIRED` / `TRIAL_DAILY_LIMIT_REACHED`), enforced only at
   the one report-creation route, not globally.
+- **Read-only mode is one router-level dependency, not per-route checks** (CONTRACTS.md
+  §2c). `app/api/router.py` attaches `subscription.require_writable_organization` to every
+  org-scoped router with write routes; it resolves the org from the JWT's `orgId` claim
+  itself (router deps run before the route's `get_current_user`, and the uploads router has a
+  token-less public GET that must keep working), lets safe methods through, and 402s the rest
+  with `evaluate_access(org).reason` as the code. `auth`/`billing`/`dashboard`/`audit_logs`/
+  `notifications`/`platform` are deliberately not gated. Adding a new org-scoped domain with
+  writes? Include it with `dependencies=_READ_ONLY_GATE` there.

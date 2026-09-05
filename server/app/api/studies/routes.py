@@ -68,6 +68,7 @@ async def create_study_intake(
     body_part: str = Form(..., alias="bodyPart"),
     study_date: str = Form(..., alias="studyDate"),
     clinical_history: str | None = Form(None, alias="clinicalHistory"),
+    referring_physician: str | None = Form(None, alias="referringPhysician"),
     template_id: str | None = Form(None, alias="templateId"),
     patient_id: str | None = Form(None, alias="patientId"),
     patient_mrn: str | None = Form(None, alias="patientMrn"),
@@ -89,9 +90,10 @@ async def create_study_intake(
 
     new_patient: PatientCreateRequest | None = None
     if not patient_id:
-        if not (patient_mrn and patient_name and patient_date_of_birth and patient_sex):
+        # MRN is optional here — PatientService assigns one when it's absent.
+        if not (patient_name and patient_date_of_birth and patient_sex):
             raise AppError.bad_request(
-                "Provide patientId, or the new patient's mrn/name/dateOfBirth/sex.",
+                "Provide patientId, or the new patient's name/dateOfBirth/sex.",
                 "PATIENT_INFO_REQUIRED",
             )
         try:
@@ -120,6 +122,7 @@ async def create_study_intake(
             body_part=body_part,
             clinical_history=clinical_history,
             study_date=study_date,
+            referring_physician=referring_physician,
             template_id=template_id,
             file=file,
             run_analysis=run_analysis,

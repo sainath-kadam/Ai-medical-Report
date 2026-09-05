@@ -15,11 +15,13 @@ export interface StudyPayload {
   bodyPart: string;
   clinicalHistory?: string;
   studyDate: string;
+  referringPhysician?: string;
   templateId?: string;
 }
 
 export interface NewPatientForIntake {
-  mrn: string;
+  /** Optional — omitted, the server assigns a per-organization `MRN-000123`. */
+  mrn?: string;
   name: string;
   dateOfBirth: string;
   sex: Sex;
@@ -35,6 +37,7 @@ export interface StudyIntakePayload {
   bodyPart: string;
   clinicalHistory?: string;
   studyDate: string;
+  referringPhysician?: string;
   templateId?: string;
   runAnalysis: boolean;
 }
@@ -73,7 +76,8 @@ export const studyApi = {
     if (payload.patientId) {
       form.append('patientId', payload.patientId);
     } else if (payload.newPatient) {
-      form.append('patientMrn', payload.newPatient.mrn);
+      // Optional: omitted -> the server assigns a per-organization MRN.
+      if (payload.newPatient.mrn) form.append('patientMrn', payload.newPatient.mrn);
       form.append('patientName', payload.newPatient.name);
       form.append('patientDateOfBirth', payload.newPatient.dateOfBirth);
       form.append('patientSex', payload.newPatient.sex);
@@ -84,6 +88,7 @@ export const studyApi = {
     form.append('bodyPart', payload.bodyPart);
     if (payload.clinicalHistory) form.append('clinicalHistory', payload.clinicalHistory);
     form.append('studyDate', payload.studyDate);
+    if (payload.referringPhysician) form.append('referringPhysician', payload.referringPhysician);
     if (payload.templateId) form.append('templateId', payload.templateId);
     form.append('runAnalysis', String(payload.runAnalysis));
     form.append('file', file);

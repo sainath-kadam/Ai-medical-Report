@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.exceptions import AppError
+from app.core.subscription import with_access
 from app.core.logging import get_logger
 from app.core.security import (
     CurrentUser,
@@ -153,7 +154,7 @@ class AuthService:
         return {
             **tokens,
             "user": to_public(without_password_hash(user_doc)),
-            "organization": to_public(org_doc),
+            "organization": to_public(with_access(org_doc)),
         }
 
     async def _verify_google_id_token(self, raw_id_token: str) -> dict[str, Any]:
@@ -331,7 +332,9 @@ class AuthService:
             org_doc = await self.orgs.find_by_id(current_user.organization_id)
             if org_doc is None:
                 raise AppError.not_found("Organization not found", "ORGANIZATION_NOT_FOUND")
-        return {"user": to_public(without_password_hash(user_doc)), "organization": to_public(org_doc)}
+        # `access` (evaluated writability — app/core/subscription.py) rides along on the org
+        # so the client can show its read-only banner without a second request.
+        return {"user": to_public(without_password_hash(user_doc)), "organization": to_public(with_access(org_doc))}
 
     async def forgot_password(self, payload: ForgotPasswordRequest) -> None:
         user_doc = await self.users.find_by_email(payload.email)

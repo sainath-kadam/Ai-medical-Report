@@ -16,6 +16,23 @@ export interface User {
   isActive?: boolean;
 }
 
+// What currently lets an organization write: a paid Stripe subscription, a manual access
+// period a system_admin granted, the free trial, or nothing (read-only).
+export type AccessSource = 'subscription' | 'manual' | 'trial' | 'none';
+export type AccessReason = 'ORGANIZATION_SUSPENDED' | 'ACCESS_EXPIRED' | 'TRIAL_EXPIRED';
+
+/** Evaluated server-side (server/app/core/subscription.py::evaluate_access) and attached to
+ * the organization on /auth/me, /organizations/me, /billing/status and every platform
+ * response — the client never re-derives trial/Stripe/manual precedence itself. While
+ * `writable` is false every POST/PATCH/DELETE on clinical routes returns 402 with `reason`
+ * as the error code; reading and logging in keep working (CONTRACTS.md §2c). */
+export interface OrganizationAccess {
+  writable: boolean;
+  reason: AccessReason | null;
+  source: AccessSource;
+  endsAt: string | null;
+}
+
 export interface Organization {
   id: string;
   name: string;
@@ -29,6 +46,13 @@ export interface Organization {
   reportHeader?: string;
   reportFooter?: string;
   primaryColor?: string;
+  subscriptionStatus?: 'trial' | 'active' | 'expired';
+  trialEndsAt?: string | null;
+  // Platform-managed access (set only by a system_admin) — see OrganizationAccess.
+  accessEndsAt?: string | null;
+  isSuspended?: boolean;
+  createdAt?: string;
+  access?: OrganizationAccess;
 }
 
 export interface TemplateSection {
@@ -100,6 +124,7 @@ export interface Study {
   bodyPart: string;
   clinicalHistory?: string;
   studyDate: string;
+  referringPhysician?: string;
   status: StudyStatus;
   assignedDoctorId?: string;
   templateId?: string;

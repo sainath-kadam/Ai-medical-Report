@@ -12,12 +12,12 @@
 }
 
 .org-settings__header h1 {
-  font-size: 1.5rem;
+  font-size: var(--font-size-2xl);
   color: var(--color-text-primary);
 }
 .org-settings__header p {
   color: var(--color-text-secondary);
-  font-size: 0.92rem;
+  font-size: var(--font-size-base);
   margin-top: var(--space-1);
 }
 
@@ -26,14 +26,14 @@
   color: var(--color-success);
   padding: var(--space-3);
   border-radius: var(--radius-sm);
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
 }
 .org-settings__error {
   background: var(--color-danger-bg);
   color: var(--color-danger);
   padding: var(--space-3);
   border-radius: var(--radius-sm);
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
 }
 
 .org-settings__card {
@@ -43,7 +43,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: 0.98rem;
+  font-size: var(--font-size-base);
   color: var(--color-text-primary);
   margin-bottom: var(--space-3);
 }
@@ -55,7 +55,7 @@
 }
 
 .org-settings__hint {
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   margin-bottom: var(--space-3);
 }
@@ -64,7 +64,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  font-size: 0.9rem;
+  font-size: var(--font-size-base);
   color: var(--color-text-primary);
   font-weight: 600;
   margin-bottom: var(--space-3);
@@ -75,7 +75,7 @@
 }
 
 .org-settings__disclaimer {
-  font-size: 0.78rem;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   border-top: 1px solid var(--color-border);
   padding-top: var(--space-3);

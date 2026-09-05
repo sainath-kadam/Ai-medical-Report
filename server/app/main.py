@@ -11,6 +11,7 @@ from app.core.exceptions import register_exception_handlers
 from app.core.logging import configure_logging, get_logger
 from app.database.connection import close_db_connection, connect_to_db, get_engine
 from app.database.models import Base
+from app.database.schema_sync import sync_missing_columns
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.middleware.request_context import RequestContextMiddleware
 
@@ -22,11 +23,16 @@ logger = get_logger(__name__)
 async def lifespan(app: FastAPI):
     await connect_to_db()
     # Greenfield schema management: create any missing tables on startup rather than
-    # requiring a separate migration step before the app can run for the first time. Once
-    # the schema needs real (data-preserving) migrations, this is the seam to replace with
-    # Alembic.
+    # requiring a separate migration step before the app can run for the first time, then
+    # add any column a model gained since the table was created (create_all alone never
+    # alters an existing table — see database/schema_sync.py). Once the schema needs real
+    # data-preserving migrations (renames, type changes, NOT NULL backfills), this is the
+    # seam to replace with Alembic.
     async with get_engine().begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        added_columns = await conn.run_sync(sync_missing_columns)
+    if added_columns:
+        logger.warning("Schema sync added %d missing column(s): %s", len(added_columns), ", ".join(added_columns))
 
     logger.info("Application startup complete (environment=%s)", settings.environment)
 

@@ -21,6 +21,9 @@ import AuditLogs from '../pages/AuditLogs/AuditLogs';
 import Settings from '../pages/Settings/Settings';
 import Profile from '../pages/Profile/Profile';
 import CreateOrganization from '../pages/Platform/CreateOrganization';
+import Organizations from '../pages/Platform/Organizations';
+import OrganizationDetail from '../pages/Platform/OrganizationDetail';
+import SystemAdmins from '../pages/Platform/SystemAdmins';
 import NotFound from '../pages/NotFound/NotFound';
 import Loader from '../components/common/Loader/Loader';
 import { useAuth } from '../hooks/useAuth';
@@ -87,7 +90,10 @@ export default function AppRoutes() {
           </Route>
 
           <Route element={<RoleRoute roles={['system_admin']} />}>
-            <Route path="/platform/organizations" element={<CreateOrganization />} />
+            <Route path="/platform/organizations" element={<Organizations />} />
+            <Route path="/platform/organizations/new" element={<CreateOrganization />} />
+            <Route path="/platform/organizations/:id" element={<OrganizationDetail />} />
+            <Route path="/platform/admins" element={<SystemAdmins />} />
           </Route>
         </Route>
       </Route>

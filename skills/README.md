@@ -28,7 +28,7 @@ check the exact wire shape before changing a route/schema.
 | `backend-ai` | The imaging-analysis + report-generation provider abstraction |
 | `backend-database` | SQLAlchemy models, engine/session, camelCase<->snake_case |
 | `backend-repositories` | `BaseRepository`'s shared CRUD/org-scoping convention |
-| `backend-storage` | Signed-URL file storage abstraction (local/S3/Firebase) |
+| `backend-storage` | Signed-URL file storage abstraction (local/Cloudinary/Firebase/S3, with optional primary→fallback chaining) |
 | `backend-platform` | `system_admin` role + onboarding new organizations |
 | `backend-billing` | Trial gating + Stripe checkout/webhook |
 | `backend-dashboard` | Stats + recent-activity rollups |

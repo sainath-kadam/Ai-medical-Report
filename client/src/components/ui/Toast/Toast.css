@@ -25,12 +25,12 @@
 .toast__icon {
   display: flex;
   margin-top: 2px;
-  font-size: 1.05rem;
+  font-size: var(--font-size-lg);
 }
 
 .toast__message {
   flex: 1;
-  font-size: 0.88rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-primary);
   line-height: 1.4;
 }

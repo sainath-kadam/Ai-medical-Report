@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
-import { FiGlobe } from 'react-icons/fi';
+import { Link } from 'react-router-dom';
+import { FiArrowLeft, FiGlobe } from 'react-icons/fi';
 import { platformApi, CreateOrganizationResult } from '../../api/platform.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
 import Card from '../../components/common/Card/Card';
@@ -39,6 +40,9 @@ export default function CreateOrganization() {
 
   return (
     <div className="create-org-page">
+      <Link to="/platform/organizations" className="create-org-page__back">
+        <FiArrowLeft size={14} /> All organizations
+      </Link>
       <div className="create-org-page__header">
         <h1>Create organization</h1>
         <p>Onboard a new clinic or imaging center, and its first org admin, onto the platform.</p>

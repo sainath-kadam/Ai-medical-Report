@@ -19,9 +19,9 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 
-from app.database.models import Organization
+from app.database.models import Organization, Report, User
 from app.repositories.base import BaseRepository
 
 
@@ -38,6 +38,45 @@ class OrganizationRepository(BaseRepository):
         await self.session.commit()
         await self.session.refresh(row)
         return self._to_dict(row)
+
+    async def list_all(
+        self, *, search: str | None = None, skip: int = 0, limit: int = 20
+    ) -> tuple[list[dict[str, Any]], int]:
+        """Every organization on the platform, newest first — system_admin only (the one
+        caller that legitimately crosses tenant boundaries, CONTRACTS.md §2b/§2c). Not
+        `list_scoped`: organizations are the tenant boundary, not a tenant-scoped resource."""
+        conditions = []
+        if search:
+            pattern = f"%{search}%"
+            conditions.append(or_(Organization.name.ilike(pattern), Organization.contact_email.ilike(pattern)))
+        total = (
+            await self.session.execute(select(func.count()).select_from(Organization).where(*conditions))
+        ).scalar_one()
+        stmt = select(Organization).where(*conditions).order_by(Organization.created_at.desc()).offset(skip).limit(limit)
+        rows = (await self.session.execute(stmt)).scalars().all()
+        return [self._to_dict(r) for r in rows], total
+
+    async def usage_counts(self, organization_ids: list[str]) -> dict[str, dict[str, int]]:
+        """`{organizationId: {"userCount": n, "reportCount": n}}` for the platform
+        organizations list/detail — two grouped counts instead of 2 x N queries."""
+        counts: dict[str, dict[str, int]] = {oid: {"userCount": 0, "reportCount": 0} for oid in organization_ids}
+        if not organization_ids:
+            return counts
+        users = await self.session.execute(
+            select(User.organization_id, func.count())
+            .where(User.organization_id.in_(organization_ids))
+            .group_by(User.organization_id)
+        )
+        for oid, n in users.all():
+            counts[oid]["userCount"] = n
+        reports = await self.session.execute(
+            select(Report.organization_id, func.count())
+            .where(Report.organization_id.in_(organization_ids))
+            .group_by(Report.organization_id)
+        )
+        for oid, n in reports.all():
+            counts[oid]["reportCount"] = n
+        return counts
 
     async def find_by_stripe_customer_id(self, customer_id: str) -> dict[str, Any] | None:
         row = (

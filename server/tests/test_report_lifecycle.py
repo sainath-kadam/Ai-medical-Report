@@ -14,7 +14,51 @@ either; it's purely a "the HTTP response shape doesn't hand back what this test 
 shortcut.)
 """
 
+from app.ai.base import GeneratedContent, ReportSectionContent
 from app.services.analysis_service import AnalysisService
+
+
+class _FakeReportProvider:
+    """Duck-typed test double — only the two methods AnalysisService.run_analysis
+    actually calls need to exist. Used to prove summarize_findings() genuinely runs as
+    its own step BEFORE generate(), and that its result wins over whatever generate()
+    independently drafted for GeneratedContent.summary (see
+    app/services/analysis_service.py's `generated.summary = clinical_summary` line)."""
+
+    async def summarize_findings(self, organization_name, context, findings, high_accuracy_mode=False):
+        return "SENTINEL: distilled clinical summary"
+
+    async def generate(self, organization_name, sections, context, findings, high_accuracy_mode):
+        return GeneratedContent(
+            summary="this should be overwritten by summarize_findings' result",
+            sections=[ReportSectionContent(key=s.key, title=s.title, content="body") for s in sections],
+            impression="impression text",
+            recommendations="recommendations text",
+            model_used="fake-model",
+        )
+
+
+async def test_summary_generated_before_report_and_used_verbatim(client, db, signup_and_login, monkeypatch):
+    """New pre-report summary step: summarize_findings() must run before generate(), and
+    the report's persisted summary must be exactly what it returned — not a second,
+    independently-drafted guess from generate() itself."""
+    await signup_and_login(email="doctor2@example.com", organization_name="Summary Test Clinic")
+
+    patient_response = await client.post(
+        "/patients", json={"mrn": "MRN-200", "name": "Sam Summary", "dateOfBirth": "1990-01-01", "sex": "other"}
+    )
+    patient_id = patient_response.json()["data"]["id"]
+    study_response = await client.post(
+        "/studies", json={"patientId": patient_id, "modality": "x_ray", "bodyPart": "Chest", "studyDate": "2026-08-01"}
+    )
+    study_id = study_response.json()["data"]["id"]
+    organization_id = (await client.get("/organizations/me")).json()["data"]["organization"]["id"]
+
+    monkeypatch.setattr("app.services.analysis_service.get_report_provider", lambda: _FakeReportProvider())
+
+    report = await AnalysisService(db).run_analysis(study_id, organization_id)
+
+    assert report["versions"][0]["content"]["summary"] == "SENTINEL: distilled clinical summary"
 
 
 async def test_full_report_lifecycle(client, db, signup_and_login):

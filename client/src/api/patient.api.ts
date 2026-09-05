@@ -10,7 +10,8 @@ export interface PatientListParams {
 }
 
 export interface PatientPayload {
-  mrn: string;
+  /** Optional — omitted, the server assigns a per-organization `MRN-000123`. */
+  mrn?: string;
   name: string;
   dateOfBirth?: string;
   sex?: Patient['sex'];

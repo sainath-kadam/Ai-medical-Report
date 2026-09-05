@@ -1,6 +1,9 @@
 """Storage provider selection (spec §3/§14). `get_storage()` is the only thing the rest
 of the app imports — swapping `STORAGE_PROVIDER` in the environment is the entire
-migration from local disk to Firebase/S3/S3-compatible storage, no code changes required.
+migration from local disk to Cloudinary/Firebase/S3/S3-compatible storage, no code changes
+required. Setting `STORAGE_FALLBACK_PROVIDER` as well (e.g. `cloudinary` + `firebase`)
+wraps the two so uploads automatically land in the second when the first is unavailable
+— see `fallback.py`.
 """
 
 from functools import lru_cache
@@ -30,16 +33,32 @@ def storage_category_for(mime_type: str, modality: str | None) -> str:
     return "other"
 
 
-@lru_cache
-def get_storage() -> StorageProvider:
-    if settings.storage_provider in ("s3", "s3_compatible"):
+def _build_provider(name: str) -> StorageProvider:
+    # Each SDK is imported only when its provider is actually selected, so an unused
+    # backend's package (boto3, firebase-admin, cloudinary) never has to be importable.
+    if name in ("s3", "s3_compatible"):
         from app.storage.s3 import S3StorageProvider
 
         return S3StorageProvider()
-    if settings.storage_provider == "firebase":
+    if name == "firebase":
         from app.storage.firebase import FirebaseStorageProvider
 
         return FirebaseStorageProvider()
+    if name == "cloudinary":
+        from app.storage.cloudinary import CloudinaryStorageProvider
+
+        return CloudinaryStorageProvider()
     from app.storage.local import LocalStorageProvider
 
     return LocalStorageProvider()
+
+
+@lru_cache
+def get_storage() -> StorageProvider:
+    primary = settings.storage_provider
+    fallback = settings.storage_fallback_provider
+    if fallback and fallback != primary:
+        from app.storage.fallback import FallbackStorageProvider
+
+        return FallbackStorageProvider(primary, fallback, _build_provider)
+    return _build_provider(primary)

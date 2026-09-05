@@ -5,6 +5,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { TextField } from '../../../components/common/TextField/TextField';
 import Button from '../../../components/common/Button/Button';
 import GoogleButton from '../../../components/common/GoogleButton/GoogleButton';
+import ThemeToggle from '../../../components/common/ThemeToggle/ThemeToggle';
 import { apiErrorMessage } from '../../../api/axiosInstance';
 import './Login.css';
 
@@ -42,6 +43,7 @@ export default function Login() {
 
   return (
     <div className="auth-page">
+      <ThemeToggle variant="fixed" />
       <div className="auth-card">
         <div className="auth-card__brand">
           <span className="auth-card__brand-mark">MS</span>

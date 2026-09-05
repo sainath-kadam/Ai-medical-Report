@@ -123,8 +123,10 @@ export default function OrganizationSettings() {
           </h3>
           <p className="org-settings__hint">
             Standard mode balances cost and turnaround time for most studies. Enable High-Accuracy Mode to
-            escalate every AI-assisted analysis to a higher-capability model tier for organizations handling
-            more complex or high-stakes imaging.
+            escalate image interpretation and the clinical summary of every AI-assisted analysis to a
+            higher-capability model (Gemini Pro or Claude Opus, depending on the configured provider) for
+            organizations handling more complex or high-stakes imaging. Gemini Pro requires a paid Gemini
+            plan; on a free key, analyses fall back to the standard model.
           </p>
           <label className="org-settings__toggle">
             <input

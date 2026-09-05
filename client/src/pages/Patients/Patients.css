@@ -12,12 +12,12 @@
   flex-wrap: wrap;
 }
 .patients-page__header h1 {
-  font-size: 1.5rem;
+  font-size: var(--font-size-2xl);
   color: var(--color-text-primary);
 }
 .patients-page__header p {
   color: var(--color-text-secondary);
-  font-size: 0.92rem;
+  font-size: var(--font-size-base);
   margin-top: var(--space-1);
 }
 
@@ -34,7 +34,7 @@
 }
 
 .patients-page__count {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
   white-space: nowrap;
 }
@@ -45,7 +45,7 @@
   color: var(--color-danger);
   padding: var(--space-3);
   border-radius: var(--radius-sm);
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
 }
 .patients-page__form-error {
   margin-bottom: var(--space-4);

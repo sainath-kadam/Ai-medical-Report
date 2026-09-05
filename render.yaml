@@ -1,0 +1,72 @@
+# Render Blueprint — creates the API service + its Postgres in one step.
+# Render Dashboard -> New -> Blueprint -> pick this repo. Render reads this file, creates
+# both resources, and prompts for every `sync: false` value below. Spec:
+# https://render.com/docs/blueprint-spec . Full walkthrough (incl. the manual
+# alternative and the optional variables NOT listed here): DEPLOY.md.
+#
+# Both resources MUST be in the same region — the DATABASE_URL below is the private
+# internal URL, which only resolves inside that region's network.
+
+databases:
+  - name: medscan-db
+    region: singapore              # change together with the service's region below
+    plan: free                     # free: 1 GB, DELETED 30 days after creation (+14-day
+                                   # grace). Use basic-256mb or higher for real data.
+    postgresMajorVersion: "16"     # matches docker-compose.yml
+    databaseName: medscan
+    user: medscan
+
+services:
+  - type: web
+    name: medscan-api              # -> https://medscan-api.onrender.com (Render suffixes
+                                   # it if the name is taken; use the URL it shows you)
+    region: singapore
+    plan: free                     # free: sleeps after 15 idle min, ~1 min cold start.
+                                   # Use starter or higher so doctors don't wait.
+    runtime: docker
+    rootDir: server                # only commits touching server/ trigger a deploy
+    dockerfilePath: ./server/Dockerfile   # both paths are relative to the REPO root
+    dockerContext: ./server
+    healthCheckPath: /api/v1/health
+    envVars:
+      # --- Required: app refuses to start without these ---
+      - key: DATABASE_URL
+        fromDatabase:
+          name: medscan-db
+          property: connectionString   # internal postgresql://... URL; the app rewrites
+                                       # the scheme to postgresql+asyncpg:// itself
+      - key: JWT_SECRET
+        generateValue: true            # random 256-bit value, generated once
+      - key: SIGNED_URL_SECRET
+        generateValue: true
+
+      # --- Deployment / proxy ---
+      - key: ENVIRONMENT
+        value: production              # HSTS header + INFO-level logs
+      - key: PORT
+        value: "8000"                  # what server/Dockerfile's CMD binds
+      - key: FORWARDED_ALLOW_IPS
+        value: "*"                     # read by uvicorn: trust X-Forwarded-For from
+                                       # Render's proxy so request.client.host is the real
+                                       # user IP. Without it the per-IP rate limiter sees
+                                       # every user as ONE client (30 logins/15 min total).
+      - key: CLIENT_URL
+        sync: false                    # https://<your-site>.netlify.app — the exact
+                                       # browser origin: https, no trailing slash, no path.
+                                       # Used for CORS + password-reset/Stripe return links.
+
+      # --- AI ---
+      - key: AI_PROVIDER
+        value: gemini
+      - key: GEMINI_API_KEY
+        sync: false
+
+      # --- File storage (Render's disk is wiped on every deploy/restart: never `local`) ---
+      - key: STORAGE_PROVIDER
+        value: cloudinary
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
+        sync: false

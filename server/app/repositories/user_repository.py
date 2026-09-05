@@ -53,6 +53,13 @@ class UserRepository(BaseRepository):
         rows = (await self.session.execute(stmt)).scalars().all()
         return [self._to_dict(r) for r in rows], total
 
+    async def list_by_role(self, role: str) -> list[dict[str, Any]]:
+        """Every account with `role` across the whole platform, oldest first. Only used for
+        `role="system_admin"` (CONTRACTS.md §2b) — those have no organization to scope by."""
+        stmt = select(User).where(User.role == role).order_by(User.created_at.asc())
+        rows = (await self.session.execute(stmt)).scalars().all()
+        return [self._to_dict(r) for r in rows]
+
     async def update(self, user_id: str, update: dict[str, Any]) -> dict[str, Any] | None:
         """Not organization-scoped (see module docstring) — callers must verify the
         target document belongs to the caller's organization before calling this."""

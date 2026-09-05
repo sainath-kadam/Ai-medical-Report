@@ -1,11 +1,11 @@
 import { useRef, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { FiMenu, FiSun, FiMoon, FiLogOut, FiUser, FiSettings, FiChevronDown, FiShield } from 'react-icons/fi';
+import { FiMenu, FiLogOut, FiUser, FiSettings, FiChevronDown, FiShield } from 'react-icons/fi';
 import { adminNavItems, primaryNavItems } from '../navItems';
 import { useAuth } from '../../../hooks/useAuth';
-import { useTheme } from '../../../hooks/useTheme';
 import { useClickOutside } from '../../../hooks/useClickOutside';
 import { getInitial } from '../../../utils/formatName';
+import ThemeToggle from '../../common/ThemeToggle/ThemeToggle';
 import './Topbar.css';
 
 interface TopbarProps {
@@ -17,7 +17,6 @@ interface TopbarProps {
  *  the Sidebar drawer) + avatar — see Topbar.css for the breakpoint. */
 export default function Topbar({ onMenuClick }: TopbarProps) {
   const { user, organization, logout } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [adminMenuOpen, setAdminMenuOpen] = useState(false);
@@ -93,9 +92,7 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
 
       <div className="topbar__right">
         {organization && <span className="topbar__org-name">{organization.name}</span>}
-        <button className="topbar__icon-btn" onClick={toggleTheme} aria-label="Toggle color theme">
-          {theme === 'dark' ? <FiSun size={18} /> : <FiMoon size={18} />}
-        </button>
+        <ThemeToggle />
         <div className="topbar__user" ref={menuRef}>
           <button className="topbar__user-btn" onClick={() => setMenuOpen((v) => !v)} aria-label="Open account menu">
             <span className="topbar__avatar">{getInitial(user?.name)}</span>

@@ -101,6 +101,20 @@ async def finalize_report(
     return ok(report)
 
 
+@router.post("/{report_id}/amend")
+async def amend_report(
+    report_id: str,
+    request: Request,
+    current_user: CurrentUser = Depends(require_admin_or_doctor()),
+    db=Depends(get_db),
+):
+    """Re-opens a finalized report for correction (status -> `amended`); the finalized
+    version stays in the history and `finalize` locks it again once the amendment is done."""
+    ip, user_agent = _client_meta(request)
+    report = await ReportService(db).amend_report(report_id, current_user, ip=ip, user_agent=user_agent)
+    return ok(report)
+
+
 @router.get("/{report_id}/pdf")
 async def download_report_pdf(
     report_id: str,

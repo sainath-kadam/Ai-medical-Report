@@ -6,23 +6,23 @@
 }
 
 .settings-page__header h1 {
-  font-size: 1.5rem;
+  font-size: var(--font-size-2xl);
   color: var(--color-text-primary);
 }
 .settings-page__header p {
   color: var(--color-text-secondary);
-  font-size: 0.92rem;
+  font-size: var(--font-size-base);
   margin-top: var(--space-1);
 }
 
 .settings-page__card h3 {
-  font-size: 0.98rem;
+  font-size: var(--font-size-base);
   color: var(--color-text-primary);
   margin-bottom: var(--space-2);
 }
 
 .settings-page__hint {
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
   margin-bottom: var(--space-4);
 }
@@ -32,7 +32,7 @@
   color: var(--color-danger);
   padding: var(--space-3);
   border-radius: var(--radius-sm);
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   margin-bottom: var(--space-4);
 }
 .settings-page__success {
@@ -40,7 +40,7 @@
   color: var(--color-success);
   padding: var(--space-3);
   border-radius: var(--radius-sm);
-  font-size: 0.86rem;
+  font-size: var(--font-size-sm);
   margin-bottom: var(--space-4);
 }
 
@@ -73,10 +73,10 @@
 .settings-page__theme-label {
   font-weight: 600;
   color: var(--color-text-primary);
-  font-size: 0.92rem;
+  font-size: var(--font-size-base);
 }
 .settings-page__theme-desc {
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
 }
 

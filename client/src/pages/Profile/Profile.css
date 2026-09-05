@@ -6,12 +6,12 @@
 }
 
 .profile-page__header h1 {
-  font-size: 1.5rem;
+  font-size: var(--font-size-2xl);
   color: var(--color-text-primary);
 }
 .profile-page__header p {
   color: var(--color-text-secondary);
-  font-size: 0.92rem;
+  font-size: var(--font-size-base);
   margin-top: var(--space-1);
 }
 
@@ -25,7 +25,7 @@
   color: var(--color-text-primary);
 }
 .profile-page__card p {
-  font-size: 0.85rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-secondary);
 }
 
@@ -38,7 +38,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.4rem;
+  font-size: var(--font-size-2xl);
   font-weight: 700;
 }
 
@@ -70,7 +70,7 @@
 }
 
 .profile-page__label {
-  font-size: 0.74rem;
+  font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   text-transform: uppercase;
   letter-spacing: 0.04em;

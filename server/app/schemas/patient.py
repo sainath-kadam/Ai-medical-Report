@@ -20,7 +20,11 @@ class PatientCreateRequest(CamelModel):
     """POST /patients — any authenticated org member (org_admin/doctor, CONTRACTS.md §3)
     may create a patient record for their own organization."""
 
-    mrn: str = Field(..., min_length=1, max_length=64)
+    # Optional on purpose: a hospital with a RIS can pass its real medical record number,
+    # everyone else leaves it out and the server assigns a per-organization `MRN-000123`
+    # (see PatientService.create_patient) — the report still prints a Patient ID, and the
+    # (organizationId, mrn) uniqueness that patient matching relies on is preserved.
+    mrn: str | None = Field(None, min_length=1, max_length=64)
     name: str = Field(..., min_length=1, max_length=200)
     date_of_birth: date
     sex: Sex

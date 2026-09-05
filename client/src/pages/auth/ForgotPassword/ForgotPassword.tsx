@@ -4,6 +4,7 @@ import { FiMail } from 'react-icons/fi';
 import { authApi } from '../../../api/auth.api';
 import { TextField } from '../../../components/common/TextField/TextField';
 import Button from '../../../components/common/Button/Button';
+import ThemeToggle from '../../../components/common/ThemeToggle/ThemeToggle';
 import '../Login/Login.css';
 
 export default function ForgotPassword() {
@@ -28,6 +29,7 @@ export default function ForgotPassword() {
 
   return (
     <div className="auth-page">
+      <ThemeToggle variant="fixed" />
       <div className="auth-card">
         <div className="auth-card__brand">
           <span className="auth-card__brand-mark">MS</span>

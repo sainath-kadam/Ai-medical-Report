@@ -86,14 +86,19 @@ _REPORT_JSON_SCHEMA = {
         "sections": {
             "type": "array",
             "description": "The report body. Exactly one entry per requested section key, in the given order.",
+            # No "title" here on purpose -- the template already provides the authoritative
+            # title for every section key (see _parse_content), and asking the model to
+            # also echo one back invites it to occasionally write a full sentence into
+            # "title" instead of a short label, especially on revise() (shown its own
+            # previous JSON as context) -- exactly the bug that produced a duplicated
+            # section heading in practice.
             "items": {
                 "type": "object",
                 "properties": {
                     "key": {"type": "string", "description": "Must exactly match one of the provided section keys."},
-                    "title": {"type": "string"},
                     "content": {"type": "string", "description": "Clinical narrative for this section, in plain prose."},
                 },
-                "required": ["key", "title", "content"],
+                "required": ["key", "content"],
                 "additionalProperties": False,
             },
         },
@@ -208,15 +213,19 @@ def _context_meta_lines(context: StudyContext) -> list[str]:
     ]
 
 
-def _image_content_block(context: StudyContext) -> dict | None:
-    if context.image_bytes and context.image_mime_type in _VISION_COMPATIBLE_MIME:
-        import base64
+def _image_content_blocks(context: StudyContext) -> list[dict]:
+    """One image block per viewable image on the study (all views/slices, in upload order),
+    skipping anything the vision API can't accept (e.g. a raw DICOM or a video)."""
+    import base64
 
-        return {
+    return [
+        {
             "type": "image",
-            "source": {"type": "base64", "media_type": context.image_mime_type, "data": base64.b64encode(context.image_bytes).decode("ascii")},
+            "source": {"type": "base64", "media_type": mime_type, "data": base64.b64encode(data).decode("ascii")},
         }
-    return None
+        for data, mime_type in context.all_images()
+        if mime_type in _VISION_COMPATIBLE_MIME
+    ]
 
 
 class AnthropicImagingProvider(BaseMedicalImagingProvider):
@@ -228,14 +237,19 @@ class AnthropicImagingProvider(BaseMedicalImagingProvider):
             "interpretable image (e.g. raw DICOM or video not yet extracted to a frame), set analyzable=false "
             "and explain why instead of fabricating visual observations."
         )
-        image_block = _image_content_block(context)
+        image_blocks = _image_content_blocks(context)
         meta_lines = [l for l in _context_meta_lines(context) if l]
-        if not image_block:
+        if not image_blocks:
             meta_lines.append(
                 "Note: the source file is not a directly viewable image format — set analyzable=false and "
                 "unanalyzableReason accordingly."
             )
-        content: list[dict] = ([image_block] if image_block else []) + [{"type": "text", "text": "\n".join(meta_lines)}]
+        elif len(image_blocks) > 1:
+            meta_lines.append(
+                f"{len(image_blocks)} images from this same study are attached (different views, series, or slices) — "
+                "read them together as one examination and reconcile observations across them."
+            )
+        content: list[dict] = [*image_blocks, {"type": "text", "text": "\n".join(meta_lines)}]
 
         data = await _call(tier, system, content, _FINDINGS_JSON_SCHEMA, max_tokens=1024)
         return StructuredFindings(
@@ -284,7 +298,7 @@ class AnthropicReportProvider(BaseReportGenerationProvider):
         meta = "\n".join(l for l in _context_meta_lines(context) if l)
         user_text = f"{meta}\n\n{_findings_block(findings)}\n\nDraft the full report now, in the structured format described above."
         data = await _call(tier, system, [{"type": "text", "text": user_text}], _REPORT_JSON_SCHEMA)
-        return self._parse_content(data, _MODEL_FOR_TIER[tier])
+        return self._parse_content(data, _MODEL_FOR_TIER[tier], sections)
 
     async def revise(
         self,
@@ -318,7 +332,7 @@ class AnthropicReportProvider(BaseReportGenerationProvider):
             "Keep everything else consistent with the previous draft unless the requested change implies otherwise."
         )
         data = await _call(tier, system, [{"type": "text", "text": user_text}], _REPORT_JSON_SCHEMA)
-        return self._parse_content(data, _MODEL_FOR_TIER[tier])
+        return self._parse_content(data, _MODEL_FOR_TIER[tier], sections)
 
     async def classify_change_request(self, instruction: str, sections: list[TemplateSectionSpec]) -> ChangeRequestClassification:
         section_keys = ", ".join(s.key for s in sections)
@@ -356,6 +370,42 @@ class AnthropicReportProvider(BaseReportGenerationProvider):
             logger.warning("summarize_for_notification failed, using fallback text", exc_info=True)
             return f"AI draft ready for review — {modality} ({body_part})."
 
+    async def summarize_findings(
+        self,
+        organization_name: str,
+        context: StudyContext,
+        findings: StructuredFindings,
+        high_accuracy_mode: bool = False,
+    ) -> str:
+        """Runs on the fast tier (haiku-4-5) regardless of `high_accuracy_mode` — distilling
+        already-computed findings into a few sentences doesn't need the higher tier
+        `generate()` uses (same "don't spend more than the task requires" reasoning as
+        `classify_change_request`). The param exists for the Gemini provider, which tiers
+        this step; see `BaseReportGenerationProvider.summarize_findings`."""
+        if _client is None:
+            raise AppError("AI provider not configured", 503, "AI_NOT_CONFIGURED")
+        if not findings.analyzable:
+            return f"Imaging could not be analyzed: {findings.unanalyzable_reason or 'unknown reason'}."
+        system = _safety_preamble(organization_name) + (
+            " Write a concise (2-4 sentence) plain-language clinical summary of the findings below — the "
+            "at-a-glance version a physician reads before the full report. Do not include an impression or "
+            "recommendations; those are separate report sections."
+        )
+        meta = "\n".join(l for l in _context_meta_lines(context) if l)
+        user_text = f"{meta}\n\n{_findings_block(findings)}\n\nWrite the summary now."
+        try:
+            response = await _client.messages.create(
+                model=_MODEL_FOR_TIER["fast"],
+                max_tokens=300,
+                system=[{"type": "text", "text": system}],
+                messages=[{"role": "user", "content": [{"type": "text", "text": user_text}]}],
+            )
+        except anthropic.APIError as exc:
+            logger.error("Claude summarize_findings error: %s", exc)
+            raise AppError("The AI service returned an error while processing this request.", 502, "AI_PROVIDER_ERROR") from exc
+        block = next((b for b in response.content if b.type == "text"), None)
+        return block.text.strip() if block else findings.raw_summary
+
     async def extract_intake(self, kind: Literal["patient", "study"], message: str, known: dict[str, str]) -> dict[str, str]:
         schema = _PATIENT_INTAKE_JSON_SCHEMA if kind == "patient" else _STUDY_INTAKE_JSON_SCHEMA
         known_lines = "\n".join(f"- {k}: {v}" for k, v in known.items() if v) or "(nothing yet)"
@@ -368,10 +418,18 @@ class AnthropicReportProvider(BaseReportGenerationProvider):
         data = await _call("fast", system, [{"type": "text", "text": message}], schema, max_tokens=256)
         return {k: v for k, v in data.items() if v}
 
-    def _parse_content(self, data: dict, model_used: str) -> GeneratedContent:
+    def _parse_content(self, data: dict, model_used: str, sections: list[TemplateSectionSpec]) -> GeneratedContent:
+        """`title` always comes from `sections` (the template), never from the model's
+        JSON — see `_REPORT_JSON_SCHEMA`'s comment for why. A key the model returned that
+        doesn't match any template section keeps its own key as a fallback title rather
+        than raising, since a malformed key here shouldn't fail the entire report."""
+        titles_by_key = {s.key: s.title for s in sections}
         return GeneratedContent(
             summary=data.get("summary", ""),
-            sections=[ReportSectionContent(key=s["key"], title=s["title"], content=s["content"]) for s in data.get("sections", [])],
+            sections=[
+                ReportSectionContent(key=s["key"], title=titles_by_key.get(s["key"], s["key"]), content=s["content"])
+                for s in data.get("sections", [])
+            ],
             impression=data.get("impression", ""),
             recommendations=data.get("recommendations", ""),
             model_used=model_used,

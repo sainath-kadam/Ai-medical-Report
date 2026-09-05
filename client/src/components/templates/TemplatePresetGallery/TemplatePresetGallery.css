@@ -40,12 +40,12 @@
 }
 
 .template-preset-gallery__name {
-  font-size: 0.92rem;
+  font-size: var(--font-size-base);
   font-weight: 600;
   color: var(--color-text-primary);
 }
 
 .template-preset-gallery__description {
-  font-size: 0.8rem;
+  font-size: var(--font-size-sm);
   color: var(--color-text-muted);
 }

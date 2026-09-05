@@ -132,6 +132,9 @@ class MockReportProvider(BaseReportGenerationProvider):
     async def summarize_for_notification(self, modality: str, body_part: str, summary: str) -> str:
         return f"AI draft ready for review — {modality} ({body_part})."
 
+    async def summarize_findings(self, organization_name, context, findings, high_accuracy_mode=False) -> str:
+        return _MOCK_NOTE
+
     async def extract_intake(self, kind: Literal["patient", "study"], message: str, known: dict[str, str]) -> dict[str, str]:
         if kind == "patient":
             return _extract_patient_fields(message, known)

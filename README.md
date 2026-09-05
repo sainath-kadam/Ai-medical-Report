@@ -7,8 +7,12 @@ and review/edit/finalize it before it's treated as a real report.
 > **AI-generated content is always preliminary decision-support.** It requires review and
 > approval by a qualified medical professional before being treated as a final report —
 > the application enforces this in its data model (report status, immutable finalized
-> versions) and its UI (a persistent banner on every non-finalized report). Nothing here
-> is a diagnostic device or a substitute for clinical judgment.
+> versions, mutating endpoints gated on status). The report document itself (in-app and
+> its PDF export) renders identically regardless of status, by request — draft/finalized
+> status is only ever shown in the surrounding app UI (`ReportViewer`'s toolbar), never in
+> the document, and a PDF downloaded before finalization carries no indication of that once
+> it leaves the app. Nothing here is a diagnostic device or a substitute for clinical
+> judgment.
 
 📄 Exact wire contract (every route, entity shape, RBAC matrix): **`CONTRACTS.md`**.
 🧩 Working on one specific module? Check **`skills/<name>/README.md`** first — see
@@ -20,6 +24,7 @@ the fast path once you know where you're going.
 - [Stack](#stack)
 - [Repository layout](#repository-layout)
 - [Quick start](#quick-start)
+- [Deploying](#deploying)
 - [How the system works, end to end](#how-the-system-works-end-to-end)
 - [Backend layout](#backend-layout-serverapp)
 - [Frontend layout](#frontend-layout-clientsrc)
@@ -33,8 +38,8 @@ the fast path once you know where you're going.
 | Frontend | React + TypeScript + Vite + React Router, plain CSS per component. No Next.js, no Tailwind. |
 | Backend | Python + FastAPI + SQLAlchemy 2.0 (async) + asyncpg, Pydantic, JWT + Google OAuth. |
 | Database | PostgreSQL. |
-| Storage | Pluggable — local disk for dev, S3/S3-compatible for production. |
-| AI | Pluggable two-layer abstraction (imaging analysis + report-generation LLM). Three providers — **Gemini** (default), Anthropic, and a zero-cost mock — selected via `AI_PROVIDER`. |
+| Storage | Pluggable — local disk for dev; Cloudinary, Firebase, or S3/S3-compatible for production, optionally chained primary → fallback. |
+| AI | Pluggable two-layer abstraction (imaging analysis + report-generation LLM). Three providers — **Gemini** (default), Anthropic, and a zero-cost mock — selected via `AI_PROVIDER`. Gemini runs four independently configurable models: `GEMINI_IMAGING_MODEL` (image interpretation, default `gemini-3.8-flash`), `GEMINI_SUMMARY_MODEL` (the pre-report clinical-summary step, also `gemini-3.8-flash` by default), `GEMINI_MODEL` (the rest of the report's text, default `gemini-3.6-flash`), and `GEMINI_HIGH_ACCURACY_MODEL` (default `gemini-3.1-pro-preview`; replaces the first two while an organization's High-Accuracy Mode is on — needs a paid Gemini plan, falls back to the standard model on a free key). All real Gemini calls go through the SDK's async surface so one slow call doesn't stall the whole server. |
 | Billing | Stripe Checkout + webhooks. Every signup starts a free trial, then needs an active subscription to keep generating AI reports. |
 
 ## Repository layout
@@ -73,6 +78,16 @@ cd server && JWT_SECRET=x SIGNED_URL_SECRET=x AI_PROVIDER=mock python -m pytest 
 # Frontend
 cd client && npm run test
 ```
+
+## Deploying
+
+Frontend on **Netlify** (the static `client/dist` bundle), backend on **Render** (Docker,
+from `server/Dockerfile`) with Render Postgres. `netlify.toml` and `render.yaml` at the
+repo root drive both platforms; **`DEPLOY.md`** walks through it step by step with every
+environment variable and the gotchas this split has — relative signed file URLs need
+Netlify's `/api/*` proxy rule, CORS is single-origin, Render's disk is ephemeral (never
+`STORAGE_PROVIDER=local` there), and the per-IP rate limiter needs `FORWARDED_ALLOW_IPS=*`
+to see real client IPs behind Render's proxy.
 
 ## How the system works, end to end
 
@@ -130,8 +145,11 @@ route) renders without a session first.
    3. `BaseMedicalImagingProvider.analyze(...)` → `StructuredFindings` (observations, a
       short summary, an analyzable/not flag — never fabricated)
    4. saves those findings onto `study.lastFindings`
-   5. `BaseReportGenerationProvider.generate(...)` → report prose from the findings +
-      template sections
+   5. `BaseReportGenerationProvider.summarize_findings(...)` and `.generate(...)` run
+      **concurrently** (`asyncio.gather` — neither depends on the other's output): the
+      former produces a short clinical summary (possibly a different model — see "AI" in
+      the Stack table), the latter the rest of the report prose. The summary call's result
+      always wins for the report's `summary` field.
    6. creates the Report (`version 1`, `author: "ai"`, `status: "ai_generated"`), marks
       the study `"completed"`, creates a Notification, writes an audit log entry
 
@@ -145,7 +163,10 @@ route) renders without a session first.
 ### 3. Doctor review — edit, request AI changes, regenerate, finalize
 
 - **`PATCH /reports/{id}`** — a doctor's manual text edit. Appends a new version
-  (`author: <doctor's userId>`, `status: "doctor_modified"`).
+  (`author: <doctor's userId>`, `status: "doctor_modified"`). The study's Report tab
+  offers both ways to change a report side by side: an **Edit** button on `ReportViewer`
+  toggles inline editable fields (summary/sections/impression/recommendations) that save
+  straight to this endpoint, alongside `RequestChangesPanel` for the AI-mediated flow below.
 - **`POST /reports/{id}/change-request {instruction}`** — runs synchronously, in-request:
   1. `classify_change_request(instruction)` — is this formatting-only, or does it need
      re-analysis?
@@ -157,9 +178,10 @@ route) renders without a session first.
 - **`POST /reports/{id}/finalize`** — `status: "finalized"`, immutable from this point
   on; every other mutating endpoint now returns `409`.
 
-The mandatory "PRELIMINARY AI-ASSISTED REPORT" banner shows whenever
-`status !== "finalized"` — there's no way to suppress it from the UI, and the PDF export
-(`pdf_service.py`) carries the same banner.
+The report document (in-app view and PDF export) does not carry any status/AI-disclosure
+banner or wording — it renders identically regardless of `status`. Status is only ever
+surfaced in the surrounding UI (`ReportViewer`'s toolbar `StatusBadge`), which a downloaded
+PDF has none of.
 
 ### 4. Multi-tenant isolation, concretely
 
@@ -196,7 +218,7 @@ Stripe keys configured, since it's pure date/count logic.
 | Folder | What's in it |
 |---|---|
 | `core/` | Settings, JWT/password/RBAC primitives, centralized exception handling, logging config, the trial/subscription gate (`subscription.py`). |
-| `database/` | The single async SQLAlchemy engine/session factory, one declarative model class per table. Tables are created automatically at startup — no migration tool yet. |
+| `database/` | The single async SQLAlchemy engine/session factory, one declarative model class per table. Tables are created automatically at startup, and `schema_sync.py` adds any column a model gained since (nullable/defaulted only) — no migration tool yet. |
 | `schemas/` | Pydantic models for **request body validation only**; responses are plain dicts. |
 | `repositories/` | One per table, all built on `BaseRepository` (insert/find/list/update/delete, organization-scoped except `users`/`organizations`/`sessions`). |
 | `services/` | Business logic; routers stay thin (parse → call service → `ok(data)`). |
@@ -250,9 +272,10 @@ React + TypeScript + Vite + React Router, plain CSS per component.
 | # | Add | Why |
 |---|---|---|
 | 1 | A real background job queue | Highest priority — see above. |
-| 2 | Database migrations (Alembic) | Tables come from `Base.metadata.create_all` at startup, which can't preserve existing rows once a real schema change is needed. |
+| 2 | Database migrations (Alembic) | Tables come from `Base.metadata.create_all` at startup plus `schema_sync.py`, which can only *add* nullable/defaulted columns — renames, type changes, and NOT NULL backfills still have no data-preserving path. |
 | 3 | Real email/SMS delivery | Password-reset links and invite passwords are only logged today — blocks any real multi-user rollout. |
 | 4 | A Redis-backed rate limiter | The current one is in-process; each additional API replica gets its own counter, silently weakening the intended global limit. |
 | 5 | DICOM/PACS/DICOMweb/HL7/FHIR integration | `Study` only has placeholder UID fields today. |
-| 6 | A manual rich-text report editor UI | The backend already supports `PATCH /reports/{id}`; only AI-assisted "request changes"/"regenerate" are wired up. |
+| 6 | ~~A manual rich-text report editor UI~~ | Done — `ReportViewer`'s Edit mode now covers this; `PATCH /reports/{id}` was already there. |
 | 7 | A CI pipeline | Tests exist and pass locally but nothing runs them on push. |
+| 8 | A persisted per-part model attribution | A report version's `aiModelUsed` is one string, but a version can now be produced by two calls (a summary model and a report model) — worth a schema field once there's a concrete need to show/audit that split. |

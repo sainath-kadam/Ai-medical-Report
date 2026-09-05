@@ -37,6 +37,10 @@ export const reportApi = {
 
   finalize: (id: string) => api.post<{ success: boolean; data: Report }>(`/reports/${id}/finalize`).then((r) => r.data.data),
 
+  // Re-opens a finalized report (status -> "amended") so it can be edited / revised /
+  // regenerated again; the finalized version stays in the history and finalize() locks it back.
+  amend: (id: string) => api.post<{ success: boolean; data: Report }>(`/reports/${id}/amend`).then((r) => r.data.data),
+
   // Authenticated binary download -- fetch via the api client (carries the Bearer token)
   // and turn the blob into an object URL at the call site, rather than a plain <a href>.
   downloadPdf: (id: string) => api.get(`/reports/${id}/pdf`, { responseType: 'blob' }).then((r) => r.data as Blob),
