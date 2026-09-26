@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { FiUserPlus } from 'react-icons/fi';
 import { patientApi } from '../../../api/patient.api';
-import { studyApi } from '../../../api/study.api';
+import { MAX_STUDY_FILE_BYTES, studyApi } from '../../../api/study.api';
 import { apiErrorMessage } from '../../../api/axiosInstance';
 import { useTemplatesList } from '../../../hooks/queries/useTemplates';
 import { Modality, Patient, Sex, StudyIntakeResult } from '../../../types';
@@ -71,6 +71,9 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
 
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // null until the request starts sending; 100 means the file is on the server and it's
+  // now storing/analyzing -- the slow part for a large MRI video.
+  const [uploadPercent, setUploadPercent] = useState<number | null>(null);
 
   // Auto-pick the org's default template once the (cached) list arrives -- only while
   // nothing is selected yet, so a background revalidation of the list never overrides a
@@ -110,8 +113,13 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
       setError('Attach the imaging file (image, video, or DICOM) for this study.');
       return;
     }
+    if (file.size > MAX_STUDY_FILE_BYTES) {
+      setError('This file is larger than the 1GB upload limit.');
+      return;
+    }
 
     setIsSubmitting(true);
+    setUploadPercent(0);
     try {
       const result = await studyApi.intake(
         {
@@ -134,13 +142,15 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
           templateId,
           runAnalysis,
         },
-        file
+        file,
+        setUploadPercent
       );
       onComplete(result);
     } catch (err) {
       setError(apiErrorMessage(err));
     } finally {
       setIsSubmitting(false);
+      setUploadPercent(null);
     }
   }
 
@@ -157,6 +167,7 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
                     type="button"
                     className={patientMode === 'existing' ? 'is-active' : ''}
                     onClick={() => setPatientMode('existing')}
+                    disabled={isSubmitting}
                   >
                     Existing patient
                   </button>
@@ -164,6 +175,7 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
                     type="button"
                     className={patientMode === 'new' ? 'is-active' : ''}
                     onClick={() => setPatientMode('new')}
+                    disabled={isSubmitting}
                   >
                     <FiUserPlus size={13} /> New patient
                   </button>
@@ -178,29 +190,37 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
                 onChange={(e) => setSelectedPatient(patientResults.find((patient) => patient.id === e.target.value) ?? null)}
                 placeholder="Select a patient"
                 options={patientResults.map((patient) => ({ value: patient.id, label: `${patient.name} · MRN ${patient.mrn}` }))}
+                disabled={isSubmitting}
               />
             ) : (
               <div className="study-intake-form__new-patient">
                 <div className="study-intake-form__row">
-                  <TextField label="Full name" value={newName} onChange={(e) => setNewName(e.target.value)} required />
+                  <TextField label="Full name" value={newName} onChange={(e) => setNewName(e.target.value)} required disabled={isSubmitting} />
                   <TextField
                     label="Date of birth"
                     type="date"
                     value={newDob}
                     onChange={(e) => setNewDob(e.target.value)}
                     required
+                    disabled={isSubmitting}
                   />
                 </div>
                 <div className="study-intake-form__row">
-                  <Select label="Sex" value={newSex} onChange={(e) => setNewSex(e.target.value as Sex)} options={SEX_OPTIONS} />
+                  <Select
+                    label="Sex"
+                    value={newSex}
+                    onChange={(e) => setNewSex(e.target.value as Sex)}
+                    options={SEX_OPTIONS}
+                    disabled={isSubmitting}
+                  />
                 </div>
                 {showContactFields ? (
                   <div className="study-intake-form__row">
-                    <TextField label="Phone (optional)" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
-                    <TextField label="Email (optional)" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
+                    <TextField label="Phone (optional)" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} disabled={isSubmitting} />
+                    <TextField label="Email (optional)" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} disabled={isSubmitting} />
                   </div>
                 ) : (
-                  <button type="button" className="study-intake-form__link-btn" onClick={() => setShowContactFields(true)}>
+                  <button type="button" className="study-intake-form__link-btn" onClick={() => setShowContactFields(true)} disabled={isSubmitting}>
                     + Add phone or email (optional)
                   </button>
                 )}
@@ -216,6 +236,7 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
                 value={modality}
                 onChange={(e) => setModality(e.target.value as Modality)}
                 options={MODALITY_OPTIONS}
+                disabled={isSubmitting}
               />
               <TextField
                 label="Body part"
@@ -223,6 +244,7 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
                 value={bodyPart}
                 onChange={(e) => setBodyPart(e.target.value)}
                 required
+                disabled={isSubmitting}
               />
             </div>
             <TextField
@@ -230,6 +252,7 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
               placeholder="Doctor who ordered this study"
               value={referringPhysician}
               onChange={(e) => setReferringPhysician(e.target.value)}
+              disabled={isSubmitting}
             />
             {isEditingDate ? (
               <TextField
@@ -239,11 +262,12 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
                 onChange={(e) => setStudyDate(e.target.value)}
                 required
                 autoFocus
+                disabled={isSubmitting}
               />
             ) : (
               <p className="study-intake-form__inline-fact">
                 Study date: <strong>{formatDate(studyDate)}</strong>
-                <button type="button" className="study-intake-form__link-btn" onClick={() => setIsEditingDate(true)}>
+                <button type="button" className="study-intake-form__link-btn" onClick={() => setIsEditingDate(true)} disabled={isSubmitting}>
                   Change
                 </button>
               </p>
@@ -254,17 +278,18 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
               value={clinicalHistory}
               onChange={(e) => setClinicalHistory(e.target.value)}
               rows={3}
+              disabled={isSubmitting}
             />
           </Card>
 
           <Card>
             <h3 className="study-intake-form__section-title">Imaging file</h3>
-            <FileDropzone file={file} onSelect={setFile} />
+            <FileDropzone file={file} onSelect={setFile} disabled={isSubmitting} />
           </Card>
 
           <Card>
             <label className="study-intake-form__toggle">
-              <input type="checkbox" checked={runAnalysis} onChange={(e) => setRunAnalysis(e.target.checked)} />
+              <input type="checkbox" checked={runAnalysis} onChange={(e) => setRunAnalysis(e.target.checked)} disabled={isSubmitting} />
               <span>Generate an AI draft report immediately</span>
             </label>
             {!runAnalysis && (
@@ -272,6 +297,15 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
             )}
 
             {error && <p className="study-intake-form__error">{error}</p>}
+            {uploadPercent !== null && (
+              <p className="study-intake-form__hint" role="status">
+                {uploadPercent < 100
+                  ? `Uploading file… ${uploadPercent}%`
+                  : runAnalysis
+                    ? 'Upload complete — storing and analyzing. Large videos can take a few minutes.'
+                    : 'Upload complete — saving the study…'}
+              </p>
+            )}
 
             <Button type="submit" isLoading={isSubmitting} fullWidth>
               {runAnalysis ? 'Generate report' : 'Create study'}
@@ -289,6 +323,7 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
                 value={templateId}
                 onChange={(e) => setTemplateId(e.target.value)}
                 options={templates.map((t) => ({ value: t.id, label: t.isDefault ? `${t.name} (default)` : t.name }))}
+                disabled={isSubmitting}
               />
             )}
           </Card>

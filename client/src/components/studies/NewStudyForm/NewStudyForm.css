@@ -59,6 +59,10 @@
   background: var(--color-primary);
   color: var(--color-text-on-primary);
 }
+.study-intake-form__mode-toggle button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
 
 .study-intake-form__row {
   display: grid;
@@ -174,6 +178,11 @@
 }
 .study-intake-form__link-btn:hover {
   text-decoration: underline;
+}
+.study-intake-form__link-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+  text-decoration: none;
 }
 
 .study-intake-form__inline-fact {

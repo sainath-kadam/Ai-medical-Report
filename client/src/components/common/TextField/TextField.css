@@ -39,6 +39,13 @@
   padding-left: 38px;
 }
 
+.field__input:disabled,
+.field__textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: var(--color-surface-alt);
+}
+
 .field__textarea {
   min-height: 96px;
   resize: vertical;

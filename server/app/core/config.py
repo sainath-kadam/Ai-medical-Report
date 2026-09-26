@@ -105,7 +105,7 @@ class Settings(BaseSettings):
     # key is from Firebase Console > Project Settings > Service Accounts.
     firebase_credentials_path: str | None = Field(None, alias="FIREBASE_CREDENTIALS_PATH")
     firebase_storage_bucket: str | None = Field(None, alias="FIREBASE_STORAGE_BUCKET")
-    max_upload_mb: int = Field(50, alias="MAX_UPLOAD_MB")
+    max_upload_mb: int = Field(1024, alias="MAX_UPLOAD_MB")
     signed_url_secret: str = Field(..., alias="SIGNED_URL_SECRET")
     signed_url_ttl_seconds: int = Field(300, alias="SIGNED_URL_TTL_SECONDS")
 
