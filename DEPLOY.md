@@ -109,7 +109,7 @@ Variable names are exact (they are the `alias=` values in `server/app/core/confi
 | `FIREBASE_CREDENTIALS_PATH` | Only with the Firebase fallback: Render → service → **Secret Files** → upload the service-account JSON as `firebase.json`, then set this to `/etc/secrets/firebase.json` |
 | `FIREBASE_STORAGE_BUCKET` | Only with the Firebase fallback |
 | `STORAGE_BUCKET`, `STORAGE_REGION`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, `STORAGE_ENDPOINT_URL` | Only for `s3` / `s3_compatible` |
-| `MAX_UPLOAD_MB` | Optional, default 50 |
+| `MAX_UPLOAD_MB` | Optional, default 1024 (1GB — sized for MRI/ultrasound video) |
 
 **Sign in with Google — optional (email/password login works without it)**
 

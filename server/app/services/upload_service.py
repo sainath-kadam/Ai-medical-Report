@@ -48,8 +48,13 @@ class UploadService:
                 "UNSUPPORTED_FILE_TYPE",
             )
 
-        data = await file.read()
+        # Starlette has already spooled the multipart body to a temp file and knows its size,
+        # so an oversized upload (MAX_UPLOAD_MB, default 1GB for MRI/ultrasound video) is
+        # rejected before it's pulled into memory; the post-read check covers a missing size.
         max_bytes = settings.max_upload_mb * 1024 * 1024
+        if file.size is not None and file.size > max_bytes:
+            raise AppError.bad_request(f"File exceeds the {settings.max_upload_mb}MB upload limit.", "FILE_TOO_LARGE")
+        data = await file.read()
         if len(data) > max_bytes:
             raise AppError.bad_request(f"File exceeds the {settings.max_upload_mb}MB upload limit.", "FILE_TOO_LARGE")
 

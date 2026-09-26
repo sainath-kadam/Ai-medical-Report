@@ -6,9 +6,10 @@ interface FileDropzoneProps {
   file: File | null;
   onSelect: (file: File | null) => void;
   accept?: string;
+  disabled?: boolean;
 }
 
-export default function FileDropzone({ file, onSelect, accept = 'image/*,.dcm,video/*' }: FileDropzoneProps) {
+export default function FileDropzone({ file, onSelect, accept = 'image/*,.dcm,video/*', disabled = false }: FileDropzoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -28,28 +29,30 @@ export default function FileDropzone({ file, onSelect, accept = 'image/*,.dcm,vi
   function handleDrop(event: DragEvent<HTMLDivElement>) {
     event.preventDefault();
     setIsDragging(false);
+    if (disabled) return;
     const dropped = event.dataTransfer.files?.[0];
     if (dropped) onSelect(dropped);
   }
 
   return (
     <div
-      className={`dropzone ${isDragging ? 'dropzone--dragging' : ''} ${file ? 'dropzone--filled' : ''}`}
+      className={`dropzone ${isDragging ? 'dropzone--dragging' : ''} ${file ? 'dropzone--filled' : ''} ${disabled ? 'dropzone--disabled' : ''}`}
       onDragOver={(e) => {
         e.preventDefault();
-        setIsDragging(true);
+        if (!disabled) setIsDragging(true);
       }}
       onDragLeave={() => setIsDragging(false)}
       onDrop={handleDrop}
-      onClick={() => !file && inputRef.current?.click()}
+      onClick={() => !disabled && !file && inputRef.current?.click()}
       role="button"
-      tabIndex={0}
+      tabIndex={disabled ? -1 : 0}
     >
       <input
         ref={inputRef}
         type="file"
         accept={accept}
         hidden
+        disabled={disabled}
         onChange={(e) => onSelect(e.target.files?.[0] ?? null)}
       />
 
@@ -57,7 +60,7 @@ export default function FileDropzone({ file, onSelect, accept = 'image/*,.dcm,vi
         <>
           <FiUploadCloud size={36} className="dropzone__icon" />
           <p className="dropzone__title">Drag & drop a scan here, or click to browse</p>
-          <p className="dropzone__hint">JPEG, PNG, WEBP, DICOM, or video · up to 50MB</p>
+          <p className="dropzone__hint">JPEG, PNG, WEBP, DICOM, or video · up to 1GB</p>
         </>
       )}
 
@@ -78,6 +81,7 @@ export default function FileDropzone({ file, onSelect, accept = 'image/*,.dcm,vi
             type="button"
             className="dropzone__remove"
             onClick={() => onSelect(null)}
+            disabled={disabled}
             aria-label="Remove selected file"
           >
             <FiX size={18} />

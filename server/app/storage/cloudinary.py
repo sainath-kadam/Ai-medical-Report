@@ -40,6 +40,11 @@ from app.storage.base import StorageProvider
 
 _RESOURCE_TYPE = "raw"
 _DELIVERY_TYPE = "authenticated"
+# Cloudinary's single-request upload API rejects anything over 100MB, so larger files (MRI/
+# ultrasound video, up to MAX_UPLOAD_MB) go through the SDK's chunked `upload_large` instead.
+# Per-asset plan limits still apply on top of this; a file the plan refuses fails here and
+# lands in STORAGE_FALLBACK_PROVIDER (see fallback.py).
+_CHUNK_SIZE = 20 * 1024 * 1024
 
 
 def _credentials() -> tuple[str, str, str]:
@@ -70,14 +75,11 @@ class CloudinaryStorageProvider(StorageProvider):
         def _upload():
             stream = io.BytesIO(data)
             stream.name = key.rsplit("/", 1)[-1]
-            cloudinary.uploader.upload(
-                stream,
-                public_id=key,
-                resource_type=_RESOURCE_TYPE,
-                type=_DELIVERY_TYPE,
-                overwrite=True,
-                invalidate=True,
-            )
+            options = dict(public_id=key, resource_type=_RESOURCE_TYPE, type=_DELIVERY_TYPE, overwrite=True, invalidate=True)
+            if len(data) > _CHUNK_SIZE:
+                cloudinary.uploader.upload_large(stream, chunk_size=_CHUNK_SIZE, **options)
+            else:
+                cloudinary.uploader.upload(stream, **options)
 
         try:
             await anyio.to_thread.run_sync(_upload)
