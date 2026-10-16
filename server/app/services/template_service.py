@@ -275,7 +275,6 @@ class TemplateService:
             template=template_dict,
             doctor_name=doctor_name,
             report_id="PREVIEW",
-            version_number=1,
             logo_bytes=logo_bytes,
         )
 

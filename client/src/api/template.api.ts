@@ -8,8 +8,6 @@ export const templateApi = {
   list: () =>
     api.get<{ success: boolean; data: Paginated<ReportTemplate> }>('/templates', { params: { pageSize: 100 } }).then((r) => r.data.data.items),
 
-  getById: (id: string) => api.get<{ success: boolean; data: ReportTemplate }>(`/templates/${id}`).then((r) => r.data.data),
-
   create: (payload: Partial<ReportTemplate>) =>
     api.post<{ success: boolean; data: ReportTemplate }>('/templates', payload).then((r) => r.data.data),
 

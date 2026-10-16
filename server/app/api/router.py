@@ -19,6 +19,21 @@ async def health_check():
     return ok({"status": "ok", "aiConfigured": is_ai_configured()})
 
 
+@router.get("/health/db")
+async def health_db():
+    """Runs one trivial query. Pinged on a schedule by .github/workflows/keep-alive.yml so
+    the database (Supabase pauses free projects after a week without activity) and this
+    service (Render's free plan sleeps after 15 idle minutes) both stay awake."""
+    from sqlalchemy import text
+
+    from app.database.connection import get_engine
+    from app.utils.response import ok
+
+    async with get_engine().connect() as conn:
+        await conn.execute(text("SELECT 1"))
+    return ok({"status": "ok", "database": "ok"})
+
+
 # --- Domain routers (added incrementally; each import is independent and order-agnostic) ---
 from app.api.auth.routes import router as auth_router  # noqa: E402
 from app.api.users.routes import router as users_router  # noqa: E402
@@ -26,7 +41,6 @@ from app.api.organizations.routes import router as organizations_router  # noqa:
 from app.api.patients.routes import router as patients_router  # noqa: E402
 from app.api.studies.routes import router as studies_router  # noqa: E402
 from app.api.uploads.routes import router as uploads_router  # noqa: E402
-from app.api.intake.routes import router as intake_router  # noqa: E402
 from app.api.analysis.routes import router as analysis_router  # noqa: E402
 from app.api.reports.routes import router as reports_router  # noqa: E402
 from app.api.templates.routes import router as templates_router  # noqa: E402
@@ -52,7 +66,6 @@ router.include_router(organizations_router, dependencies=_READ_ONLY_GATE)
 router.include_router(patients_router, dependencies=_READ_ONLY_GATE)
 router.include_router(studies_router, dependencies=_READ_ONLY_GATE)
 router.include_router(uploads_router, dependencies=_READ_ONLY_GATE)
-router.include_router(intake_router, dependencies=_READ_ONLY_GATE)
 router.include_router(analysis_router, dependencies=_READ_ONLY_GATE)
 router.include_router(reports_router, dependencies=_READ_ONLY_GATE)
 router.include_router(templates_router, dependencies=_READ_ONLY_GATE)

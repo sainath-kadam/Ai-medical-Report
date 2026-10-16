@@ -197,7 +197,7 @@ export default function Landing() {
           <div className="landing-nav__brand">
             <img src="/LogoMedicalAI2.jpg" alt="" className="landing-nav__brand-mark" />
             <span>
-              Medo <strong>AI</strong>
+              Radio<strong>lens</strong>
             </span>
           </div>
           <div className="landing-nav__actions">
@@ -228,7 +228,7 @@ export default function Landing() {
             always.
           </h1>
           <p>
-            Medo AI drafts a structured, preliminary imaging report the moment a scan is uploaded — so your team spends
+            Radiolens drafts a structured, preliminary imaging report the moment a scan is uploaded — so your team spends
             time reviewing and finalizing, not starting from a blank page.
           </p>
           {/* One primary CTA here, not two -- "Log in" already always visible in the nav
@@ -332,10 +332,10 @@ export default function Landing() {
         <div className="landing-nav__brand">
           <img src="/LogoMedicalAI2.jpg" alt="" className="landing-nav__brand-mark" />
           <span>
-            Medo <strong>AI</strong>
+            Radio<strong>lens</strong>
           </span>
         </div>
-        <span className="landing-footer__copyright">© {new Date().getFullYear()} Medo AI</span>
+        <span className="landing-footer__copyright">© {new Date().getFullYear()} Radiolens</span>
       </footer>
     </div>
   );

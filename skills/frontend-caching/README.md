@@ -86,3 +86,13 @@ data right after. Not part of the original CONTRACTS.md spec.
   The one component-level fetch that WAS converted is `NewStudyForm`'s template picker
   (`useTemplatesList()`, same key the Templates settings page reads) — opening the upload
   flow after visiting Templates, or the reverse, costs zero network requests.
+- **The cache survives a page reload** (`client/src/lib/queryPersistence.ts`, wired up in
+  `queryClient.ts`): successful queries are written to `sessionStorage` (throttled, 1s),
+  restored at startup, then revalidated like any stale entry — a reload paints the last data
+  at once instead of waiting on the API. `sessionStorage` on purpose (patient data; gone when
+  the tab closes). Bump `CACHE_VERSION` there if a cached response shape changes
+  incompatibly. Login, logout and a 401 all wipe it (`AuthContext.clearSessionData`).
+- **`AuthContext` also renders from a saved profile on reload** (`radiolens_profile` in
+  localStorage, written after every successful `/auth/me`): with a token and a saved
+  profile, `isLoading` starts false and `/auth/me` re-checks in the background — only a 401
+  logs the user out, exactly as before.

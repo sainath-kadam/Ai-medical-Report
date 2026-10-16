@@ -79,6 +79,11 @@ async def download_file(storage_key: str, token: str = Query(...), db: AsyncSess
     file_record = await StudyRepository(db).find_file_by_storage_key(storage_key)
     content_type = file_record["mimeType"] if file_record else "application/octet-stream"
     file_name = file_record["fileName"] if file_record else storage_key
+    if not file_record and storage_key.startswith(("video_frames/", "study_slices/")):
+        # A video frame or a ZIP slice the AI read (not a file row of its own) — see
+        # video_service.py / archive_service.py.
+        file_name = storage_key.rsplit("/", 1)[-1]
+        content_type = "image/png" if file_name.endswith(".png") else "image/jpeg"
 
     data = await get_storage().download(storage_key)
     return Response(

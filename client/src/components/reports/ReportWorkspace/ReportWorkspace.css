@@ -17,7 +17,8 @@
   flex-direction: column;
   gap: var(--space-4);
   position: sticky;
-  top: calc(var(--topbar-height) + var(--space-4));
+  /* Relative to the scrolling content area, which already starts below the Topbar. */
+  top: var(--space-4);
 }
 
 .report-workspace__card-title {
@@ -32,54 +33,8 @@
   padding: var(--space-4) 0;
 }
 
-.report-workspace__job {
-  margin-top: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.report-workspace__job-steps {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.report-workspace__job-step {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-}
-
-.report-workspace__job-step-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-border-strong);
-  flex-shrink: 0;
-}
-
-.report-workspace__job-step--done {
-  color: var(--color-text-secondary);
-}
-.report-workspace__job-step--done .report-workspace__job-step-dot {
-  background: var(--color-success);
-}
-
-.report-workspace__job-step--current {
-  color: var(--color-text-primary);
-  font-weight: 600;
-}
-.report-workspace__job-step--current .report-workspace__job-step-dot {
-  background: var(--color-primary);
-  box-shadow: 0 0 0 3px var(--color-primary-light);
-}
-
-.report-workspace__job-loading {
-  display: flex;
-}
+/* The analysis-progress pipeline (.report-workspace__job / __job-step* / __job-loading) is
+   styled once, shared with the other progress panels, in styles/ai-effects.css. */
 
 .report-workspace__report-actions {
   display: flex;

@@ -19,18 +19,23 @@ from app.services.analysis_service import AnalysisService
 
 
 class _FakeReportProvider:
-    """Duck-typed test double — only the two methods AnalysisService.run_analysis
-    actually calls need to exist. Used to prove summarize_findings() genuinely runs as
-    its own step BEFORE generate(), and that its result wins over whatever generate()
-    independently drafted for GeneratedContent.summary (see
-    app/services/analysis_service.py's `generated.summary = clinical_summary` line)."""
+    """Duck-typed test double for the two report-writing methods AnalysisService calls,
+    recording which ran — to prove a standard report costs ONE report-writing AI call (the
+    report's own summary is used), while High-Accuracy Mode adds the separate (Pro)
+    summarize_findings() call and its result wins. See
+    analysis_service.generate_report_content."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
 
     async def summarize_findings(self, organization_name, context, findings, high_accuracy_mode=False):
-        return "SENTINEL: distilled clinical summary"
+        self.calls.append("summarize_findings")
+        return "SENTINEL: separate high-accuracy summary"
 
     async def generate(self, organization_name, sections, context, findings, high_accuracy_mode):
+        self.calls.append("generate")
         return GeneratedContent(
-            summary="this should be overwritten by summarize_findings' result",
+            summary="SENTINEL: summary from the report call",
             sections=[ReportSectionContent(key=s.key, title=s.title, content="body") for s in sections],
             impression="impression text",
             recommendations="recommendations text",
@@ -38,12 +43,7 @@ class _FakeReportProvider:
         )
 
 
-async def test_summary_generated_before_report_and_used_verbatim(client, db, signup_and_login, monkeypatch):
-    """New pre-report summary step: summarize_findings() must run before generate(), and
-    the report's persisted summary must be exactly what it returned — not a second,
-    independently-drafted guess from generate() itself."""
-    await signup_and_login(email="doctor2@example.com", organization_name="Summary Test Clinic")
-
+async def _summary_test_study(client, email: str) -> tuple[str, str]:
     patient_response = await client.post(
         "/patients", json={"mrn": "MRN-200", "name": "Sam Summary", "dateOfBirth": "1990-01-01", "sex": "other"}
     )
@@ -53,12 +53,34 @@ async def test_summary_generated_before_report_and_used_verbatim(client, db, sig
     )
     study_id = study_response.json()["data"]["id"]
     organization_id = (await client.get("/organizations/me")).json()["data"]["organization"]["id"]
+    return study_id, organization_id
 
-    monkeypatch.setattr("app.services.analysis_service.get_report_provider", lambda: _FakeReportProvider())
+
+async def test_standard_report_uses_the_report_calls_own_summary_no_extra_call(client, db, signup_and_login, monkeypatch):
+    await signup_and_login(email="doctor2@example.com", organization_name="Summary Test Clinic")
+    study_id, organization_id = await _summary_test_study(client, "doctor2@example.com")
+    provider = _FakeReportProvider()
+    monkeypatch.setattr("app.services.analysis_service.get_report_provider", lambda: provider)
 
     report = await AnalysisService(db).run_analysis(study_id, organization_id)
 
-    assert report["versions"][0]["content"]["summary"] == "SENTINEL: distilled clinical summary"
+    assert provider.calls == ["generate"]
+    assert report["versions"][0]["content"]["summary"] == "SENTINEL: summary from the report call"
+
+
+async def test_high_accuracy_report_uses_the_separate_summary_call(client, db, signup_and_login, monkeypatch):
+    from app.repositories.organization_repository import OrganizationRepository
+
+    await signup_and_login(email="doctor3@example.com", organization_name="Summary HA Clinic")
+    study_id, organization_id = await _summary_test_study(client, "doctor3@example.com")
+    await OrganizationRepository(db).update(organization_id, {"highAccuracyMode": True})
+    provider = _FakeReportProvider()
+    monkeypatch.setattr("app.services.analysis_service.get_report_provider", lambda: provider)
+
+    report = await AnalysisService(db).run_analysis(study_id, organization_id)
+
+    assert sorted(provider.calls) == ["generate", "summarize_findings"]
+    assert report["versions"][0]["content"]["summary"] == "SENTINEL: separate high-accuracy summary"
 
 
 async def test_full_report_lifecycle(client, db, signup_and_login):

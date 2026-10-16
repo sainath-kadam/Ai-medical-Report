@@ -1,4 +1,4 @@
-# Medo AI — Backend Rebuild Contracts (source of truth)
+# Radiolens — Backend Rebuild Contracts (source of truth)
 
 This document is the single source of truth for the FastAPI rebuild of `server/` and the
 corresponding updates to the existing `client/`. Every agent/human working on either side
@@ -303,8 +303,8 @@ class BaseReportGenerationProvider(ABC):
     async def generate(self, findings: StructuredFindings, sections: list[TemplateSection],
                         context: StudyContext, high_accuracy: bool) -> GeneratedContent: ...
     async def revise(self, findings: StructuredFindings, sections, context, previous: GeneratedContent,
-                      instruction: str, target_sections: list[str], high_accuracy: bool) -> GeneratedContent: ...
-    async def classify_change_request(self, instruction: str, sections) -> ChangeRequestClassification: ...
+                      instruction: str, classification: ChangeRequestClassification, high_accuracy: bool) -> GeneratedContent: ...
+    async def classify_change_request(self, instruction: str) -> ChangeRequestClassification: ...
     async def summarize_findings(self, organization_name: str, context: StudyContext,
                                   findings: StructuredFindings, high_accuracy_mode: bool = False) -> str: ...
 ```
@@ -337,7 +337,7 @@ placeholder content when no `AI_API_KEY` is set (never breaks local dev).
 model later without touching services/routers.
 
 Change-request flow (spec §24): `classify_change_request` runs on the **fast** tier and
-returns `{targetSections: [...], formattingOnly: bool}`. If `formattingOnly`, `revise()`
+returns `{formattingOnly: bool}`. If `formattingOnly`, `revise()`
 must NOT re-run imaging analysis — it rewrites only using existing findings/content.
 
 ## 6. Storage (spec §14)

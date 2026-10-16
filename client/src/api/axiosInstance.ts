@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { SKIP_AUTH } from '../utils/devFlags';
+import { clearPersistedQueryCache } from '../lib/queryPersistence';
 
 const ACCESS_TOKEN_KEY = 'medscan_access_token';
 const REFRESH_TOKEN_KEY = 'medscan_refresh_token';
@@ -90,6 +91,7 @@ api.interceptors.response.use(
       }
 
       tokenStorage.clear();
+      clearPersistedQueryCache();
       if (!SKIP_AUTH && !window.location.pathname.startsWith('/login')) {
         window.location.href = '/login';
       }

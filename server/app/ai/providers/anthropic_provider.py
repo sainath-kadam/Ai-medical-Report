@@ -29,7 +29,6 @@ downstream is the actual safety control.
 from __future__ import annotations
 
 import json
-from typing import Literal
 
 import anthropic
 
@@ -82,7 +81,7 @@ _FINDINGS_JSON_SCHEMA = {
 _REPORT_JSON_SCHEMA = {
     "type": "object",
     "properties": {
-        "summary": {"type": "string", "description": "A one-to-two sentence plain-language summary, for quick scanning in a list view."},
+        "summary": {"type": "string", "description": "A concise (2-4 sentence) plain-language clinical summary of the findings, read before the full report."},
         "sections": {
             "type": "array",
             "description": "The report body. Exactly one entry per requested section key, in the given order.",
@@ -112,36 +111,9 @@ _REPORT_JSON_SCHEMA = {
 _CLASSIFICATION_JSON_SCHEMA = {
     "type": "object",
     "properties": {
-        "targetSections": {"type": "array", "items": {"type": "string"}, "description": "Section keys this instruction affects. Empty array means it affects the whole report."},
         "formattingOnly": {"type": "boolean", "description": "True if the instruction is purely about wording/formatting/structure and does not require re-examining the image or changing any medical content."},
     },
-    "required": ["targetSections", "formattingOnly"],
-    "additionalProperties": False,
-}
-
-_PATIENT_INTAKE_JSON_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "name": {"type": "string", "description": "Patient's full name, or empty string if not stated in this message."},
-        "mrn": {"type": "string", "description": "Medical record number, or empty string if not stated in this message."},
-        "dateOfBirth": {"type": "string", "description": "ISO 8601 date (YYYY-MM-DD) if a date of birth was stated, else empty string."},
-        "sex": {"type": "string", "description": "One of male, female, other, unspecified if stated/implied, else empty string."},
-        "contactPhone": {"type": "string", "description": "Empty string if not mentioned."},
-        "contactEmail": {"type": "string", "description": "Empty string if not mentioned."},
-    },
-    "required": ["name", "mrn", "dateOfBirth", "sex", "contactPhone", "contactEmail"],
-    "additionalProperties": False,
-}
-
-_STUDY_INTAKE_JSON_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "modality": {"type": "string", "description": "One of x_ray, ct, mri, ultrasound, other if stated/implied, else empty string."},
-        "bodyPart": {"type": "string", "description": "Empty string if not stated in this message."},
-        "studyDate": {"type": "string", "description": "ISO 8601 date (YYYY-MM-DD) if a study/scan date was stated, else empty string."},
-        "clinicalHistory": {"type": "string", "description": "Relevant clinical history/symptoms/reason for the study mentioned, else empty string."},
-    },
-    "required": ["modality", "bodyPart", "studyDate", "clinicalHistory"],
+    "required": ["formattingOnly"],
     "additionalProperties": False,
 }
 
@@ -269,8 +241,11 @@ def _build_report_system(organization_name: str, sections: list[TemplateSectionS
         "Write the full structured report body from those findings.\n\n"
         f"Structure the report using exactly these sections, in this order:\n{section_list}\n\n"
         "Write plain prose for each section — no markdown headers or bullet characters; the application applies "
-        "the organization's own visual formatting when it renders your structured output. Keep the summary to "
-        "1-2 sentences. If clinical history is provided, explicitly reconcile the findings against it. If the "
+        "the organization's own visual formatting when it renders your structured output. "
+        '"summary" is the concise (2-4 sentence) plain-language clinical summary of the findings — the '
+        "at-a-glance version a physician reads before the full report; keep the impression and "
+        "recommendations out of it (they are separate fields). "
+        "If clinical history is provided, explicitly reconcile the findings against it. If the "
         "findings indicate the image could not be analyzed, say so plainly in the findings section instead of "
         "fabricating observations."
     )
@@ -334,41 +309,17 @@ class AnthropicReportProvider(BaseReportGenerationProvider):
         data = await _call(tier, system, [{"type": "text", "text": user_text}], _REPORT_JSON_SCHEMA)
         return self._parse_content(data, _MODEL_FOR_TIER[tier], sections)
 
-    async def classify_change_request(self, instruction: str, sections: list[TemplateSectionSpec]) -> ChangeRequestClassification:
-        section_keys = ", ".join(s.key for s in sections)
+    async def classify_change_request(self, instruction: str) -> ChangeRequestClassification:
         system = (
-            "Classify a physician's free-text request to modify a medical report draft. Decide which template "
-            f"sections it targets (from: {section_keys} — empty array if it affects the whole report) and whether "
-            "it is purely a formatting/wording/structure request (formattingOnly=true) versus one that requires "
-            "reconsidering medical content or the underlying image (formattingOnly=false). When genuinely "
-            "uncertain, prefer formattingOnly=false — it is safer to over-include a content review than to skip one."
+            "Classify a physician's free-text request to modify a medical report draft: is it purely a "
+            "formatting/wording/structure request (formattingOnly=true), or one that requires reconsidering "
+            "medical content or the underlying image (formattingOnly=false)? When genuinely uncertain, prefer "
+            "formattingOnly=false — it is safer to over-include a content review than to skip one."
         )
         data = await _call("fast", system, [{"type": "text", "text": instruction}], _CLASSIFICATION_JSON_SCHEMA, max_tokens=256)
         return ChangeRequestClassification(
-            target_sections=data.get("targetSections", []),
             formatting_only=data.get("formattingOnly", False),
         )
-
-    async def summarize_for_notification(self, modality: str, body_part: str, summary: str) -> str:
-        if _client is None:
-            return f"AI draft ready for review — {modality} ({body_part})."
-        try:
-            response = await _client.messages.create(
-                model=_MODEL_FOR_TIER["fast"],
-                max_tokens=60,
-                messages=[{
-                    "role": "user",
-                    "content": (
-                        f"Write one short activity-feed sentence (under 15 words, no quotes) announcing that a new "
-                        f"AI-drafted {modality} report is ready for physician review. Context: {summary}"
-                    ),
-                }],
-            )
-            block = next((b for b in response.content if b.type == "text"), None)
-            return block.text.strip() if block else f"AI draft ready for review — {modality} ({body_part})."
-        except Exception:
-            logger.warning("summarize_for_notification failed, using fallback text", exc_info=True)
-            return f"AI draft ready for review — {modality} ({body_part})."
 
     async def summarize_findings(
         self,
@@ -405,18 +356,6 @@ class AnthropicReportProvider(BaseReportGenerationProvider):
             raise AppError("The AI service returned an error while processing this request.", 502, "AI_PROVIDER_ERROR") from exc
         block = next((b for b in response.content if b.type == "text"), None)
         return block.text.strip() if block else findings.raw_summary
-
-    async def extract_intake(self, kind: Literal["patient", "study"], message: str, known: dict[str, str]) -> dict[str, str]:
-        schema = _PATIENT_INTAKE_JSON_SCHEMA if kind == "patient" else _STUDY_INTAKE_JSON_SCHEMA
-        known_lines = "\n".join(f"- {k}: {v}" for k, v in known.items() if v) or "(nothing yet)"
-        system = (
-            f"A physician is describing a {kind} through a conversational intake chat, one message at a time. "
-            f"Extract only the fields this specific message states or clearly implies — leave a field as an "
-            "empty string if this message doesn't address it. Never guess or invent a value. Already confirmed "
-            f"so far (do not re-extract these unless this message changes one of them):\n{known_lines}"
-        )
-        data = await _call("fast", system, [{"type": "text", "text": message}], schema, max_tokens=256)
-        return {k: v for k, v in data.items() if v}
 
     def _parse_content(self, data: dict, model_used: str, sections: list[TemplateSectionSpec]) -> GeneratedContent:
         """`title` always comes from `sections` (the template), never from the model's

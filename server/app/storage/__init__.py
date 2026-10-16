@@ -15,7 +15,7 @@ from app.storage.base import StorageProvider
 # (a real subdirectory for local disk, an S3 key prefix that every S3 console/tool already
 # renders as a folder) instead of one flat namespace. `LocalStorageProvider` also uses this
 # set to validate the prefix before touching the filesystem.
-STORAGE_CATEGORIES = frozenset({"dicom", "video", "x_ray", "ct", "mri", "ultrasound", "other", "pdf", "template_logo"})
+STORAGE_CATEGORIES = frozenset({"dicom", "video", "video_frames", "study_slices", "x_ray", "ct", "mri", "ultrasound", "other", "pdf", "template_logo"})
 
 _IMAGE_MODALITY_CATEGORIES = frozenset({"x_ray", "ct", "mri", "ultrasound", "other"})
 

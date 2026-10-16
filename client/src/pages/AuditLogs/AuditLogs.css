@@ -93,7 +93,10 @@
     flex-direction: column;
     align-items: stretch;
   }
+  /* In a column, the desktop `flex: 1 1 220px` basis becomes a 220px *height* --
+     reset it so each filter is only as tall as its input. */
   .audit-logs-page__filters .field {
     min-width: 0;
+    flex: 0 0 auto;
   }
 }

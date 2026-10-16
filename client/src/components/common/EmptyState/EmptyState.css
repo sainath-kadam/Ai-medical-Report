@@ -17,9 +17,9 @@
   width: 72px;
   height: 72px;
   border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--color-primary) 14%, transparent), transparent 72%);
+  background: var(--color-primary-light);
   font-size: 2rem;
-  color: var(--color-text-muted);
+  color: var(--color-primary);
   margin-bottom: var(--space-4);
 }
 

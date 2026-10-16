@@ -17,6 +17,7 @@ os.environ.setdefault("SIGNED_URL_SECRET", "test-signed-url-secret")
 os.environ.setdefault("AI_PROVIDER", "mock")
 os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
@@ -24,6 +25,21 @@ from sqlalchemy.pool import StaticPool
 
 from app.database import connection as db_connection
 from app.database.models import Base
+
+
+@pytest.fixture(autouse=True)
+def _no_rate_limits(monkeypatch):
+    """The rate limiter (app/middleware/rate_limit.py) keeps its hit counters in the app
+    process, which every test shares — so once the suite as a whole had made enough signups,
+    later tests started getting 429s depending on run order. It reads its limits from
+    `settings` per request, so lifting them here keeps each test independent."""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "rate_limit_auth_per_15min", 1_000_000)
+    monkeypatch.setattr(settings, "rate_limit_api_per_15min", 1_000_000)
+    # Tests assert on the finished report in the response; the background mode has its own
+    # tests (test_background_analysis.py).
+    monkeypatch.setattr(settings, "analysis_in_background", False)
 
 
 @pytest_asyncio.fixture

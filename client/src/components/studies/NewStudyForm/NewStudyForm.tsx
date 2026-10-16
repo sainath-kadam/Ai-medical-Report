@@ -1,18 +1,18 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { FiUserPlus } from 'react-icons/fi';
-import { patientApi } from '../../../api/patient.api';
 import { MAX_STUDY_FILE_BYTES, studyApi } from '../../../api/study.api';
 import { apiErrorMessage } from '../../../api/axiosInstance';
+import { usePatient, usePatientsList } from '../../../hooks/queries/usePatients';
 import { useTemplatesList } from '../../../hooks/queries/useTemplates';
 import { Modality, Patient, Sex, StudyIntakeResult } from '../../../types';
 import { MODALITY_OPTIONS } from '../../../utils/studyMeta';
 import Card from '../../common/Card/Card';
 import Button from '../../common/Button/Button';
-import Loader from '../../common/Loader/Loader';
 import { TextField, TextArea } from '../../common/TextField/TextField';
 import Select from '../../ui/Select/Select';
 import FileDropzone from '../../upload/FileDropzone/FileDropzone';
 import { formatDate } from '../../../utils/formatDate';
+import { videoTooLongMessage } from '../../../utils/videoLimits';
 import './NewStudyForm.css';
 
 const SEX_OPTIONS = [
@@ -37,7 +37,11 @@ interface NewStudyFormProps {
  *  `studyApi.intake` call, instead of the old separate create/upload/analyze requests. */
 export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyFormProps) {
   const [patientMode, setPatientMode] = useState<'existing' | 'new'>('existing');
-  const [patientResults, setPatientResults] = useState<Patient[]>([]);
+  // Same cached queries the Patients pages read, so opening this form usually costs no
+  // request at all (and the list survives a reload, see lib/queryPersistence.ts).
+  const { data: patientPage } = usePatientsList({ pageSize: 100 });
+  const patientResults: Patient[] = patientPage?.items ?? [];
+  const { data: initialPatient } = usePatient(initialPatientId);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
 
   // No MRN field: the server assigns a per-organization medical record number
@@ -65,7 +69,6 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
   // costs zero network requests.
   const { data: templates = [] } = useTemplatesList();
   const [templateId, setTemplateId] = useState<string | undefined>(undefined);
-  const selectedTemplate = templates.find((t) => t.id === templateId);
   const [file, setFile] = useState<File | null>(null);
   const [runAnalysis, setRunAnalysis] = useState(true);
 
@@ -83,15 +86,10 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
     setTemplateId(templates.find((t) => t.isDefault)?.id ?? templates[0]?.id);
   }, [templates, templateId]);
 
+  // Preselect the patient this form was opened for, once their record is available.
   useEffect(() => {
-    if (!initialPatientId) return;
-    patientApi.getById(initialPatientId).then(setSelectedPatient).catch(() => { });
-  }, [initialPatientId]);
-
-  useEffect(() => {
-    if (patientMode !== 'existing') return;
-    patientApi.list({ pageSize: 100 }).then((data) => setPatientResults(data.items)).catch(() => setPatientResults([]));
-  }, [patientMode]);
+    if (initialPatient) setSelectedPatient((current) => current ?? initialPatient);
+  }, [initialPatient]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -110,11 +108,16 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
       return;
     }
     if (!file) {
-      setError('Attach the imaging file (image, video, or DICOM) for this study.');
+      setError('Attach the imaging file (image, DICOM, ZIP of slices, or video) for this study.');
       return;
     }
     if (file.size > MAX_STUDY_FILE_BYTES) {
       setError('This file is larger than the 1GB upload limit.');
+      return;
+    }
+    const tooLong = await videoTooLongMessage(file);
+    if (tooLong) {
+      setError(tooLong);
       return;
     }
 
@@ -302,7 +305,7 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
                 {uploadPercent < 100
                   ? `Uploading file… ${uploadPercent}%`
                   : runAnalysis
-                    ? 'Upload complete — storing and analyzing. Large videos can take a few minutes.'
+                    ? 'Upload complete — preparing the scan for the AI…'
                     : 'Upload complete — saving the study…'}
               </p>
             )}

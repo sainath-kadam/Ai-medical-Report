@@ -45,7 +45,16 @@ def with_signed_urls(study: dict[str, Any]) -> dict[str, Any]:
     and `app/api/uploads/routes.py` (the freshly-updated study returned after an upload),
     rather than each duplicating the same `{**f, "signedUrl": ...}` comprehension."""
     storage = get_storage()
-    files = [{**f, "signedUrl": storage.generate_signed_url(f["storageKey"])} for f in study.get("files", [])]
+    files = [
+        # A purged file's bytes are gone (video retention) -- no link that would only 404.
+        {
+            **f,
+            "signedUrl": None if f.get("purgedAt") or f.get("processingStatus") else storage.generate_signed_url(f["storageKey"]),
+            # A video's AI frames (kept after the video itself is purged).
+            "frameUrls": [storage.generate_signed_url(key) for key in f.get("frameKeys") or []],
+        }
+        for f in study.get("files", [])
+    ]
     return {**study, "files": files}
 
 # Roles a study's `assignedDoctorId` may point at — matches CONTRACTS.md §3's "Review/
@@ -217,7 +226,8 @@ class StudyService:
         )
         study = await self.create_study(current_user, study_payload, ip=ip, user_agent=user_agent)
 
-        updated_study, _file_record = await UploadService(self.db).upload_file(
+        uploader = UploadService(self.db)
+        updated_study, _file_record = await uploader.upload_file(
             study_id=study["id"],
             organization_id=current_user.organization_id,
             modality=modality,
@@ -232,7 +242,11 @@ class StudyService:
         }
 
         if run_analysis:
-            analysis = await AnalysisService(self.db).start_analysis(study["id"], current_user.organization_id)
+            # Hand analysis what was just uploaded (the image, or a video's frames) instead of
+            # letting it download that straight back from storage.
+            analysis = await AnalysisService(self.db).start_analysis(
+                study["id"], current_user.organization_id, preloaded=uploader.preloaded
+            )
             result["analysisJobId"] = analysis["jobId"]
             result["report"] = analysis["report"]
             refreshed = await self.repo.find_by_id_scoped(study["id"], current_user.organization_id)

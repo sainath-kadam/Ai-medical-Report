@@ -58,7 +58,7 @@ export function defaultValues(): TemplateFormValues {
 /** Maps an already-saved template to the editable form shape -- shared by this form's own
  *  "load for editing" effect and by NewStudyForm's inline "customize this template" panel,
  *  so the two surfaces can't drift on how a template's fields get seeded into a draft. */
-export function templateToFormValues(template: ReportTemplate): TemplateFormValues {
+function templateToFormValues(template: ReportTemplate): TemplateFormValues {
   return {
     name: template.name,
     header: {

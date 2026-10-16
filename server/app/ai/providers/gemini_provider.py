@@ -3,7 +3,7 @@
 configurable models — `GEMINI_IMAGING_MODEL` (image interpretation, default
 `gemini-3.8-flash`), `GEMINI_SUMMARY_MODEL` (the pre-report clinical-summary step, also
 `gemini-3.8-flash` by default), `GEMINI_MODEL` (full report text — generate/revise/
-classify_change_request/extract_intake, default `gemini-3.6-flash`), and
+classify_change_request, default `gemini-3.6-flash`), and
 `GEMINI_HIGH_ACCURACY_MODEL` (default `gemini-3.1-pro-preview`), which stands in for the
 imaging and summary models — the two steps where model quality decides what the doctor
 reads — whenever the organization's High-Accuracy Mode toggle is on (see `_tiered`).
@@ -28,7 +28,6 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Literal
 
 from app.ai.base import (
     BaseMedicalImagingProvider,
@@ -84,23 +83,11 @@ _REPORT_SCHEMA = {
 _CLASSIFICATION_SCHEMA = {
     "type": "object",
     "properties": {
-        "targetSections": {"type": "array", "items": {"type": "string"}},
         "formattingOnly": {"type": "boolean"},
     },
-    "required": ["targetSections", "formattingOnly"],
+    "required": ["formattingOnly"],
 }
 
-_PATIENT_INTAKE_SCHEMA = {
-    "type": "object",
-    "properties": {k: {"type": "string"} for k in ("name", "mrn", "dateOfBirth", "sex", "contactPhone", "contactEmail")},
-    "required": ["name", "mrn", "dateOfBirth", "sex", "contactPhone", "contactEmail"],
-}
-
-_STUDY_INTAKE_SCHEMA = {
-    "type": "object",
-    "properties": {k: {"type": "string"} for k in ("modality", "bodyPart", "studyDate", "clinicalHistory")},
-    "required": ["modality", "bodyPart", "studyDate", "clinicalHistory"],
-}
 
 
 def _client():
@@ -113,6 +100,8 @@ def _client():
 
 # HTTP codes worth retrying / failing over on: rate limit, and Google-side capacity errors.
 _TRANSIENT_CODES = {429, 500, 502, 503, 504}
+# Busy/rate-limited: fail over to the next model immediately (see _generate_with_fallback).
+_SWITCH_MODEL_CODES = {429, 503}
 _ATTEMPTS_PER_MODEL = 2
 _RETRY_DELAYS = (1.0, 2.5)
 
@@ -198,7 +187,8 @@ async def _generate_with_fallback(
         if m and m not in model_chain:
             model_chain.append(m)
     last_exc: Exception | None = None
-    for candidate in model_chain:
+    for position, candidate in enumerate(model_chain):
+        has_next_model = position < len(model_chain) - 1
         for attempt in range(_ATTEMPTS_PER_MODEL):
             try:
                 response = await client.aio.models.generate_content(model=candidate, contents=contents, config=config)
@@ -219,6 +209,13 @@ async def _generate_with_fallback(
                 # output budget before finishing the JSON — is a bad roll, not a bad request:
                 # retry, then fail over, exactly like a 503.
                 transient = code in _TRANSIENT_CODES or (code is None and isinstance(exc, (json.JSONDecodeError, ValueError)))
+                # Overloaded (503) / rate-limited (429): another model has its own capacity
+                # and quota, so switch now rather than waiting out a retry on this one —
+                # seen live, each 503 takes 4-8s to come back, so a same-model retry cost
+                # ~10s per busy model. Retries are kept for the last model in the chain.
+                if code in _SWITCH_MODEL_CODES and has_next_model:
+                    logger.warning("Gemini %s busy (%s) — switching to next model in chain", candidate, code)
+                    break
                 if transient and attempt < _ATTEMPTS_PER_MODEL - 1:
                     delay = _RETRY_DELAYS[min(attempt, len(_RETRY_DELAYS) - 1)]
                     logger.warning("Gemini %s transient error %s — retrying in %.1fs", candidate, code or type(exc).__name__, delay)
@@ -316,8 +313,11 @@ def _build_report_system(organization_name: str, sections: list[TemplateSectionS
         + "\n\nYou will be given structured findings from a separate image-analysis step (not the image itself). "
         "Write the full structured report body from those findings.\n\n"
         f"Structure the report using exactly these sections, in this order:\n{section_list}\n\n"
-        "Write plain prose for each section — no markdown headers or bullet characters. Keep the summary to "
-        "1-2 sentences. If clinical history is provided, explicitly reconcile the findings against it."
+        "Write plain prose for each section — no markdown headers or bullet characters. "
+        '"summary" is the concise (2-4 sentence) plain-language clinical summary of the findings — the '
+        "at-a-glance version a physician reads before the full report; keep the impression and "
+        "recommendations out of it (they are separate fields). "
+        "If clinical history is provided, explicitly reconcile the findings against it."
     )
 
 
@@ -432,45 +432,16 @@ class GeminiReportProvider(BaseReportGenerationProvider):
         )
         return _parse_content(data, sections, served_model)
 
-    async def classify_change_request(self, instruction: str, sections: list[TemplateSectionSpec]) -> ChangeRequestClassification:
+    async def classify_change_request(self, instruction: str) -> ChangeRequestClassification:
         from google.genai import types
 
-        section_keys = ", ".join(s.key for s in sections)
         system = (
-            "Classify a physician's free-text request to modify a medical report draft. Decide which template "
-            f"sections it targets (from: {section_keys} — empty array if it affects the whole report) and whether "
-            "it is purely a formatting/wording/structure request (formattingOnly=true) versus one that requires "
-            "reconsidering medical content (formattingOnly=false). When uncertain, prefer formattingOnly=false."
+            "Classify a physician's free-text request to modify a medical report draft: is it purely a "
+            "formatting/wording/structure request (formattingOnly=true), or one that requires reconsidering "
+            "medical content (formattingOnly=false)? When uncertain, prefer formattingOnly=false."
         )
         data = await _generate_json(settings.gemini_model, system, [types.Part.from_text(text=instruction)], _CLASSIFICATION_SCHEMA, max_tokens=2048)
-        return ChangeRequestClassification(target_sections=data.get("targetSections", []), formatting_only=data.get("formattingOnly", False))
-
-    async def summarize_for_notification(self, modality: str, body_part: str, summary: str) -> str:
-        if not settings.gemini_api_key:
-            return f"AI draft ready for review — {modality} ({body_part})."
-        from google.genai import types
-
-        try:
-            client = _client()
-            response = await client.aio.models.generate_content(
-                model=settings.gemini_model,
-                contents=[
-                    types.Content(
-                        role="user",
-                        parts=[
-                            types.Part.from_text(
-                                text=f"Write one short activity-feed sentence (under 15 words, no quotes) announcing that a new "
-                                f"AI-drafted {modality} report is ready for physician review. Context: {summary}"
-                            )
-                        ],
-                    )
-                ],
-                config=types.GenerateContentConfig(max_output_tokens=60),
-            )
-            return (response.text or "").strip() or f"AI draft ready for review — {modality} ({body_part})."
-        except Exception:
-            logger.warning("summarize_for_notification failed, using fallback text", exc_info=True)
-            return f"AI draft ready for review — {modality} ({body_part})."
+        return ChangeRequestClassification(formatting_only=data.get("formattingOnly", False))
 
     async def summarize_findings(
         self,
@@ -506,17 +477,3 @@ class GeminiReportProvider(BaseReportGenerationProvider):
             preferred_fallbacks=preferred,
         )
         return (response.text or "").strip() or findings.raw_summary
-
-    async def extract_intake(self, kind: Literal["patient", "study"], message: str, known: dict[str, str]) -> dict[str, str]:
-        from google.genai import types
-
-        schema = _PATIENT_INTAKE_SCHEMA if kind == "patient" else _STUDY_INTAKE_SCHEMA
-        known_lines = "\n".join(f"- {k}: {v}" for k, v in known.items() if v) or "(nothing yet)"
-        system = (
-            f"A physician is describing a {kind} through a conversational intake chat, one message at a time. "
-            f"Extract only the fields this specific message states or clearly implies — leave a field as an "
-            "empty string if this message doesn't address it. Never guess or invent a value. Already confirmed "
-            f"so far (do not re-extract these unless this message changes one of them):\n{known_lines}"
-        )
-        data = await _generate_json(settings.gemini_model, system, [types.Part.from_text(text=message)], schema, max_tokens=2048)
-        return {k: v for k, v in data.items() if v}

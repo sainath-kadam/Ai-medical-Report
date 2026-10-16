@@ -1,0 +1,290 @@
+/* ==========================================================================
+   AI motion layer -- the visual language for "the AI is working right now".
+
+   The analysis-progress pipeline is rendered with identical markup in three places
+   (StudyDetail's sidebar, ReportWorkspace's "AI analysis" card, and the Dashboard's
+   post-intake progress card, which reuses the report-workspace__ classes), so its
+   styling lives here once instead of being copied into each component file.
+
+   Performance budget: every infinite animation below moves only `transform`,
+   `opacity` or a tiny element's `background-position` -- nothing triggers layout,
+   and all of it is switched off by the reduced-motion guard in base.css.
+   ========================================================================== */
+
+/* ---- Shared keyframes ---- */
+@keyframes ai-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes ai-ping {
+  0% {
+    transform: scale(0.85);
+    opacity: 0.75;
+  }
+  80%,
+  100% {
+    transform: scale(1.9);
+    opacity: 0;
+  }
+}
+
+@keyframes ai-breathe {
+  0%,
+  100% {
+    transform: scale(0.82);
+    opacity: 0.75;
+  }
+  50% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* A soft band of light sweeping top -> bottom, like a scanner head passing over film. */
+@keyframes ai-scan {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(260%);
+    opacity: 0;
+  }
+}
+
+@keyframes ai-shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+@keyframes ai-flow {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 0 -200%;
+  }
+}
+
+/* ---- Analysis job panel ---- */
+.study-detail__job,
+.report-workspace__job,
+.card.report-workspace__applying {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--color-ai-1) 26%, var(--color-border));
+  background:
+    radial-gradient(260px circle at 100% 0%, color-mix(in srgb, var(--color-ai-2) 12%, transparent), transparent 70%),
+    radial-gradient(220px circle at 0% 100%, color-mix(in srgb, var(--color-ai-3) 10%, transparent), transparent 70%),
+    var(--color-surface);
+  box-shadow: var(--glow-ai);
+}
+
+.study-detail__job,
+.report-workspace__job {
+  margin-top: var(--space-4);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* The scan beam. z-index -1 inside the isolated panel puts it above the panel's
+   background but beneath its text, so it never washes out the step labels. */
+.study-detail__job::before,
+.report-workspace__job::before,
+.card.report-workspace__applying::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 45%;
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--color-ai-1) 10%, transparent) 65%,
+    color-mix(in srgb, var(--color-ai-3) 22%, transparent) 92%,
+    transparent
+  );
+  animation: ai-scan 2.8s var(--ease-out) infinite;
+}
+
+/* Faint dotted "sensor grid" texture behind the steps. */
+.study-detail__job::after,
+.report-workspace__job::after,
+.card.report-workspace__applying::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  background-image: radial-gradient(color-mix(in srgb, var(--color-ai-1) 22%, transparent) 1px, transparent 1.2px);
+  background-size: 14px 14px;
+  mask-image: linear-gradient(to bottom, black, transparent 90%);
+  -webkit-mask-image: linear-gradient(to bottom, black, transparent 90%);
+  opacity: 0.6;
+}
+
+/* ---- Pipeline steps ---- */
+.study-detail__job-steps,
+.report-workspace__job-steps {
+  display: flex;
+  flex-direction: column;
+}
+
+.study-detail__job-step,
+.report-workspace__job-step {
+  --step-dot: 18px;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 7px 0;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-muted);
+  transition: color 300ms ease;
+}
+
+/* Connector rail from this step's dot down to the next one. */
+.study-detail__job-step:not(:last-child)::before,
+.report-workspace__job-step:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: calc(var(--step-dot) / 2 - 1px);
+  top: calc(50% + var(--step-dot) / 2 + 2px);
+  width: 2px;
+  height: calc(100% - var(--step-dot) - 4px);
+  border-radius: 2px;
+  background: var(--color-border-strong);
+}
+
+.study-detail__job-step-dot,
+.report-workspace__job-step-dot {
+  position: relative;
+  z-index: 1;
+  width: var(--step-dot);
+  height: var(--step-dot);
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 2px solid var(--color-border-strong);
+  transition: background-color 300ms ease, border-color 300ms ease, box-shadow 300ms ease;
+}
+
+/* Done: solid success disc with a drawn checkmark. */
+.study-detail__job-step--done,
+.report-workspace__job-step--done {
+  color: var(--color-text-secondary);
+}
+.study-detail__job-step--done::before,
+.report-workspace__job-step--done::before {
+  background: linear-gradient(to bottom, var(--color-success), color-mix(in srgb, var(--color-success) 40%, var(--color-ai-1)));
+}
+.study-detail__job-step--done .study-detail__job-step-dot,
+.report-workspace__job-step--done .report-workspace__job-step-dot {
+  background: var(--color-success);
+  border-color: var(--color-success);
+}
+.study-detail__job-step--done .study-detail__job-step-dot::after,
+.report-workspace__job-step--done .report-workspace__job-step-dot::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: 4px;
+  height: 8px;
+  border-right: 2px solid var(--color-surface);
+  border-bottom: 2px solid var(--color-surface);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+/* Current: glowing AI-gradient core, an expanding ping ring, data "flowing" down the
+   rail toward the next stage, and a shimmer across the stage label. */
+.study-detail__job-step--current,
+.report-workspace__job-step--current {
+  color: var(--color-text-primary);
+  font-weight: 600;
+}
+.study-detail__job-step--current::before,
+.report-workspace__job-step--current::before {
+  background: linear-gradient(
+    to bottom,
+    var(--color-ai-1),
+    var(--color-ai-2) 25%,
+    transparent 50%,
+    var(--color-ai-1) 75%,
+    var(--color-ai-3)
+  );
+  background-size: 100% 200%;
+  animation: ai-flow 1.2s linear infinite;
+}
+.study-detail__job-step--current .study-detail__job-step-dot,
+.report-workspace__job-step--current .report-workspace__job-step-dot {
+  border-color: transparent;
+  background: var(--gradient-ai);
+  box-shadow: 0 0 14px -2px color-mix(in srgb, var(--color-ai-2) 70%, transparent);
+}
+.study-detail__job-step--current .study-detail__job-step-dot::before,
+.report-workspace__job-step--current .report-workspace__job-step-dot::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 2px solid var(--color-ai-1);
+  animation: ai-ping 1.6s var(--ease-out) infinite;
+}
+.study-detail__job-step--current .study-detail__job-step-dot::after,
+.report-workspace__job-step--current .report-workspace__job-step-dot::after {
+  content: '';
+  position: absolute;
+  inset: 4px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  animation: ai-breathe 1.6s ease-in-out infinite;
+}
+.study-detail__job-step--current > span:last-child,
+.report-workspace__job-step--current > span:last-child {
+  background: linear-gradient(
+    90deg,
+    var(--color-text-primary) 0%,
+    var(--color-text-primary) 35%,
+    var(--color-ai-1) 45%,
+    var(--color-ai-2) 50%,
+    var(--color-ai-3) 55%,
+    var(--color-text-primary) 65%,
+    var(--color-text-primary) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ai-shimmer 2.2s linear infinite;
+}
+
+.study-detail__job-loading,
+.report-workspace__job-loading {
+  display: flex;
+  padding-top: var(--space-3);
+  border-top: 1px dashed color-mix(in srgb, var(--color-ai-1) 25%, var(--color-border));
+}
+.study-detail__job-loading .loader,
+.report-workspace__job-loading .loader {
+  flex-direction: row;
+}

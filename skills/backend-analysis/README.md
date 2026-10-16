@@ -19,13 +19,20 @@ wire contract this domain implements.
 
 ## Non-obvious things
 
-- **There is no background worker.** `start_analysis` creates the job row and then calls
-  `run_analysis` inline, in the same request — the whole imaging + report-generation
-  round trip happens before the HTTP response returns. Redis/ARQ were removed; the two
-  GET routes still exist purely so the frontend's existing polling UI keeps working (it
-  just sees the job already `completed`/`failed` on its very first poll instead of
-  watching it progress). Don't "fix" this by adding an early return — CLAUDE.md and this
-  module's docstrings both call it out as a deliberate, temporary simplification.
+- **Analysis runs as an in-process background task** (`settings.analysis_in_background`,
+  default true). `start_analysis` creates the `queued` job, schedules
+  `_run_analysis_in_background` (`app/core/background.schedule`, its own DB session) and
+  returns `{jobId, report: None}` at once; the frontend polls `GET /analysis/jobs/{id}`
+  (Dashboard after intake, StudyDetail for re-runs). A failure is recorded on the job by
+  `run_analysis` itself. Startup runs `fail_interrupted_analyses`: jobs still in flight
+  from a previous process become `failed` / `ANALYSIS_INTERRUPTED`, otherwise the
+  "already in progress" guard would block that study forever. `ANALYSIS_IN_BACKGROUND=
+  false` restores the old inline behavior (report in the response) — tests use it via
+  conftest; `tests/test_background_analysis.py` covers the background mode.
+- **Gemini failover is immediate on 503/429** (`_SWITCH_MODEL_CODES` in
+  gemini_provider.py): a busy or rate-limited model hands the request to the next model
+  in the chain without a same-model retry (each 503 takes 4-8s to come back); only the
+  last model in the chain retries.
 - `run_analysis(study_id, organization_id)` takes no `job_id` — that's a leftover of the
   worker-based signature. It re-finds "the most recently created `queued` job for this
   study" itself (`_acquire_job`), and falls back to creating one if none exists (so it

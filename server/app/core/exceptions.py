@@ -48,10 +48,6 @@ class AppError(Exception):
         return cls(message, status.HTTP_409_CONFLICT, code)
 
     @classmethod
-    def too_many_requests(cls, message: str = "Too many requests, please slow down", code: str = "RATE_LIMITED") -> "AppError":
-        return cls(message, status.HTTP_429_TOO_MANY_REQUESTS, code)
-
-    @classmethod
     def payment_required(cls, message: str, code: str = "PAYMENT_REQUIRED") -> "AppError":
         return cls(message, status.HTTP_402_PAYMENT_REQUIRED, code)
 

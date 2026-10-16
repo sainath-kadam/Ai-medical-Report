@@ -101,7 +101,6 @@ def build_report_pdf(
     template: dict[str, Any],
     doctor_name: str,
     report_id: str,
-    version_number: int,
     logo_bytes: bytes | None = None,
 ) -> bytes:
     # Every style knob below falls back to the exact literal that was hardcoded here before

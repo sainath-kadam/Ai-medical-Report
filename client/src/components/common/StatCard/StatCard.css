@@ -6,33 +6,12 @@
   overflow: hidden;
 }
 
-/* A thin tone-colored rail along the top edge -- a quiet accent that also gives each
-   tile a distinct identity at a glance across a row of otherwise-identical cards. */
-.stat-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: var(--stat-card-tone, var(--color-primary));
-  opacity: 0.85;
-}
-.stat-card--primary {
-  --stat-card-tone: var(--color-primary);
-}
-.stat-card--accent {
-  --stat-card-tone: var(--color-accent);
-}
-.stat-card--success {
-  --stat-card-tone: var(--color-success);
-}
-.stat-card--warning {
-  --stat-card-tone: var(--color-warning);
-}
+/* Every tile shares one look (brand-blue icon on a blue tint) whatever its `tone` prop:
+   a row of metrics in four different hues read as noise, not information. The tone
+   classes still exist on the markup but intentionally no longer change color. */
 
 .stat-card.card--interactive:hover {
-  box-shadow: 0 14px 28px -12px color-mix(in srgb, var(--stat-card-tone, var(--color-primary)) 40%, transparent), var(--shadow-md);
+  box-shadow: var(--shadow-md);
 }
 
 .stat-card__icon {
@@ -44,30 +23,25 @@
   align-items: center;
   justify-content: center;
   font-size: 1.3rem;
+  position: relative;
+  z-index: 1;
   transition: transform var(--transition-base);
 }
 .stat-card.card--interactive:hover .stat-card__icon {
   transform: scale(1.08);
 }
 
-.stat-card__icon--primary {
-  background: linear-gradient(135deg, var(--color-primary-light), color-mix(in srgb, var(--color-primary) 18%, var(--color-primary-light)));
-  color: var(--color-primary);
-}
-.stat-card__icon--accent {
-  background: linear-gradient(135deg, var(--color-accent-light), color-mix(in srgb, var(--color-accent) 18%, var(--color-accent-light)));
-  color: var(--color-accent);
-}
-.stat-card__icon--success {
-  background: linear-gradient(135deg, var(--color-success-bg), color-mix(in srgb, var(--color-success) 18%, var(--color-success-bg)));
-  color: var(--color-success);
-}
+.stat-card__icon--primary,
+.stat-card__icon--accent,
+.stat-card__icon--success,
 .stat-card__icon--warning {
-  background: linear-gradient(135deg, var(--color-warning-bg), color-mix(in srgb, var(--color-warning) 18%, var(--color-warning-bg)));
-  color: var(--color-warning);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
 }
 
 .stat-card__body {
+  position: relative;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -76,6 +50,7 @@
 
 .stat-card__label {
   font-size: var(--font-size-sm);
+  font-weight: 500;
   color: var(--color-text-secondary);
 }
 
@@ -85,7 +60,7 @@
   color: var(--color-text-primary);
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
-  letter-spacing: -0.02em;
+  letter-spacing: -0.03em;
 }
 
 .stat-card__hint {

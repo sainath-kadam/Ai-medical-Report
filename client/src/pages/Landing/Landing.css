@@ -42,7 +42,7 @@
   font-size: var(--font-size-lg);
 }
 .landing-btn--primary {
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  background: var(--gradient-primary);
   color: var(--color-text-on-primary);
   /* color-mix (not a hardcoded light-mode hex) so the glow retint follows whichever
      --color-primary is active in dark mode, instead of staying tinted to the light
@@ -271,14 +271,16 @@
 
 .landing-hero__text h1 {
   font-size: clamp(1.8rem, 3.6vw, 2.9rem);
-  line-height: 1.15;
+  line-height: 1.1;
+  letter-spacing: -0.035em;
+  font-weight: 800;
   color: var(--color-text-primary);
   margin-bottom: var(--space-4);
 }
 /* An animated gradient sweep on the headline's key phrase -- the "shine" treatment
    common to hero headlines on current AI-product marketing pages. */
 .landing-hero__accent {
-  background: linear-gradient(90deg, var(--color-primary), var(--color-accent), var(--color-primary));
+  background: linear-gradient(90deg, var(--color-ai-1), var(--color-ai-2), var(--color-ai-3), var(--color-ai-1));
   background-size: 200% auto;
   -webkit-background-clip: text;
   background-clip: text;
@@ -344,8 +346,8 @@
   width: 100%;
   height: 100%;
   border-radius: var(--radius-lg);
-  background: linear-gradient(160deg, #0f2027, #17303a 60%, #0f2027);
-  border: 1px solid rgba(45, 212, 191, 0.25);
+  background: linear-gradient(160deg, #0b1424, #13233f 60%, #0b1424);
+  border: 1px solid rgba(96, 165, 250, 0.3);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
   transition: transform 0.15s ease-out;
@@ -374,8 +376,8 @@
   left: 0;
   right: 0;
   height: 46px;
-  background: linear-gradient(180deg, transparent, rgba(45, 212, 191, 0.35), transparent);
-  box-shadow: 0 0 24px 4px rgba(45, 212, 191, 0.35);
+  background: linear-gradient(180deg, transparent, rgba(96, 165, 250, 0.4), transparent);
+  box-shadow: 0 0 24px 4px rgba(96, 165, 250, 0.35);
   animation: xray-scan 3.2s ease-in-out infinite;
 }
 

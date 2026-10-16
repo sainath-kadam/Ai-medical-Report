@@ -1,5 +1,5 @@
 import { api } from './axiosInstance';
-import { GeneratedReportContent, Modality, Paginated, Report, ReportStatus, ReportVersion } from '../types';
+import { GeneratedReportContent, Modality, Paginated, Report, ReportStatus } from '../types';
 
 export interface ReportListParams {
   page?: number;
@@ -14,9 +14,6 @@ export const reportApi = {
     api.get<{ success: boolean; data: Paginated<Report> }>('/reports', { params }).then((r) => r.data.data),
 
   getById: (id: string) => api.get<{ success: boolean; data: Report }>(`/reports/${id}`).then((r) => r.data.data),
-
-  getVersions: (id: string) =>
-    api.get<{ success: boolean; data: ReportVersion[] }>(`/reports/${id}/versions`).then((r) => r.data.data),
 
   // Doctor's manual edit of the current version's content. Backend appends a new version.
   update: (id: string, payload: Partial<GeneratedReportContent>) =>
@@ -44,8 +41,4 @@ export const reportApi = {
   // Authenticated binary download -- fetch via the api client (carries the Bearer token)
   // and turn the blob into an object URL at the call site, rather than a plain <a href>.
   downloadPdf: (id: string) => api.get(`/reports/${id}/pdf`, { responseType: 'blob' }).then((r) => r.data as Blob),
-
-  // Convenience string for reference/debugging only -- not fetchable directly from the
-  // browser (no auth header), use downloadPdf() instead.
-  downloadUrl: (id: string) => `${api.defaults.baseURL}/reports/${id}/pdf`,
 };

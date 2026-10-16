@@ -20,7 +20,7 @@ export default function ReportCard({ report }: ReportCardProps) {
   return (
     <Link to={`/reports/${report.id}`} className="report-card">
       <div className="report-card__thumb">
-        {thumbFile ? <img src={thumbFile.signedUrl} alt="" /> : <FiImage size={22} />}
+        {thumbFile?.signedUrl ? <img src={thumbFile.signedUrl} alt="" /> : <FiImage size={22} />}
       </div>
       <div className="report-card__body">
         <div className="report-card__top">

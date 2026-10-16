@@ -86,7 +86,6 @@ class GeneratedContent:
 
 @dataclass
 class ChangeRequestClassification:
-    target_sections: list[str]
     formatting_only: bool
 
 
@@ -133,12 +132,7 @@ class BaseReportGenerationProvider(ABC):
     ) -> GeneratedContent: ...
 
     @abstractmethod
-    async def classify_change_request(
-        self, instruction: str, sections: list[TemplateSectionSpec]
-    ) -> ChangeRequestClassification: ...
-
-    @abstractmethod
-    async def summarize_for_notification(self, modality: str, body_part: str, summary: str) -> str: ...
+    async def classify_change_request(self, instruction: str) -> ChangeRequestClassification: ...
 
     @abstractmethod
     async def summarize_findings(
@@ -149,31 +143,14 @@ class BaseReportGenerationProvider(ABC):
         high_accuracy_mode: bool = False,
     ) -> str:
         """Distills `findings` into a short (2-4 sentence), physician-facing clinical
-        summary, as its OWN call — run before `generate()` drafts the full report body.
-        `high_accuracy_mode` mirrors `analyze()`'s: this summary is the first thing the
-        physician reads, so a provider that tiers (Gemini -> GEMINI_HIGH_ACCURACY_MODEL)
-        escalates it together with image interpretation; a provider may also ignore it
-        (Anthropic keeps the fast tier). The caller (AnalysisService/ReportService) overwrites whatever `generate()`
-        produced for `GeneratedContent.summary` with this method's return value, so what a
-        physician sees in the report's Summary field is always exactly what this step
-        produced, not a second, independent guess from the full-report call. Kept as its
-        own provider method (rather than folded into `generate()`) so an implementation
-        can point it at a different, summary-specialized model — see
-        `GeminiReportProvider.summarize_findings` (GEMINI_SUMMARY_MODEL) — without
-        touching the model used for the rest of the report. Same safety rule as
-        `generate()`: never invent content beyond `findings`."""
+        summary as its own call. Only used with High-Accuracy Mode
+        (`analysis_service.generate_report_content`): there it runs on the stronger model
+        (Gemini: GEMINI_HIGH_ACCURACY_MODEL) concurrently with `generate()`, and its result
+        replaces `generate()`'s own summary. In standard mode `generate()`'s summary is used
+        and this isn't called. Same safety rule as `generate()`: never invent content
+        beyond `findings`."""
         ...
 
-    @abstractmethod
-    async def extract_intake(self, kind: Literal["patient", "study"], message: str, known: dict[str, str]) -> dict[str, str]:
-        """Extracts whatever `kind` fields (patient: name/mrn/dateOfBirth/sex/contactPhone/
-        contactEmail; study: modality/bodyPart/studyDate/clinicalHistory) the physician's
-        free-text `message` states or clearly implies, given what's already confirmed
-        (`known`) — used by the chat-style study-intake flow (CONTRACTS.md §9 `/intake`).
-        Returns only newly-extracted, non-empty values for THIS message; the caller merges
-        them into `known` and decides which required fields are still missing — this method
-        must never guess a value that wasn't actually stated."""
-        ...
 
 
 def is_ai_configured() -> bool:

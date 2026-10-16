@@ -76,7 +76,7 @@ function DocField({
 /** Renders one version of a report the way it will actually look once printed/downloaded
  *  (mirrors server/app/services/pdf_service.py's layout: facility header -> patient/study
  *  identification block -> exam title -> narrative sections -> signature block -> footer)
- *  using the organization's template — accent color, header, doctor-info toggles, style,
+ *  using the organization's template — header, doctor-info toggles, style,
  *  and section order all come from there, so two organizations never see the same layout
  *  unless they choose to. Supports zooming the page and, when `editable`, writing directly
  *  onto it in place.
@@ -91,7 +91,6 @@ export default function ReportViewer({ report, selectedVersion, onSelectVersion,
   const patient = study?.patient;
   const version = report.versions.find((v) => v.versionNumber === selectedVersion) ?? report.versions[report.versions.length - 1];
   const meta = REPORT_STATUS_META[report.status];
-  const accent = template?.accentColor || '#0E7C86';
   const style = template?.style;
   const isFinalized = report.status === 'finalized';
 
@@ -170,7 +169,6 @@ export default function ReportViewer({ report, selectedVersion, onSelectVersion,
       className={`report-viewer ${isEditing ? 'report-viewer--editing' : ''}`}
       style={
         {
-          '--report-accent': accent,
           '--report-zoom': zoomPercent / 100,
           '--report-font-size': style?.fontSize ? `${style.fontSize / 10}rem` : undefined,
           '--report-text-color': style?.contentTextColor || undefined,

@@ -34,7 +34,7 @@ export default function ForgotPassword() {
         <div className="auth-card__brand">
           <img src="/LogoMedicalAI2.jpg" alt="" className="auth-card__brand-mark" />
           <span>
-            Medo <strong>AI</strong>
+            Radio<strong>lens</strong>
           </span>
         </div>
         <h1 className="auth-card__title">Forgot your password?</h1>

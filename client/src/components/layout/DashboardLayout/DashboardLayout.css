@@ -1,5 +1,12 @@
+/* App shell: the layout is exactly one screen tall and never scrolls itself. The Topbar
+   stays fixed at the top and only <main> (everything below the Topbar's bottom border)
+   scrolls, with its own scrollbar -- so the header never moves or changes width between
+   short and long pages. 100dvh (with a 100vh fallback) tracks mobile browsers' collapsing
+   address bar. */
 .dashboard-layout {
-  min-height: 100vh;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
   /* A very quiet ambient wash behind every authenticated page -- fixed (not scrolled
@@ -7,15 +14,25 @@
      any one page's length. Subtle by design: this is a data-dense app shell, not a
      marketing page, so it should recede completely behind real content. */
   background:
-    radial-gradient(900px circle at 12% 0%, color-mix(in srgb, var(--color-primary) 5%, transparent), transparent 55%),
-    radial-gradient(700px circle at 100% 0%, color-mix(in srgb, var(--color-accent) 4%, transparent), transparent 50%),
+    radial-gradient(1000px circle at 50% -20%, color-mix(in srgb, var(--color-primary) 5%, transparent), transparent 60%),
     var(--color-bg);
-  background-attachment: fixed;
+  background-repeat: no-repeat;
 }
 
 .dashboard-layout__content {
   flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  /* Reserve the scrollbar's width inside the content area only (below the header), so
+     centered page content doesn't shift when a page becomes long enough to scroll. */
+  scrollbar-gutter: stable;
   padding: var(--space-6) var(--space-5) var(--space-7);
+}
+/* Focused programmatically for keyboard scrolling (see DashboardLayout.tsx) -- not a
+   control, so no focus ring. */
+.dashboard-layout__content:focus {
+  outline: none;
 }
 
 .dashboard-layout__inner {

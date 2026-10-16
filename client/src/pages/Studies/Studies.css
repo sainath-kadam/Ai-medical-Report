@@ -29,6 +29,12 @@
 .studies-page__filters > * {
   min-width: 180px;
 }
+@media (max-width: 640px) {
+  .studies-page__filters > * {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+}
 
 .studies-page__error {
   background: var(--color-danger-bg);

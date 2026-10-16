@@ -3,7 +3,7 @@
   overflow-x: auto;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
 }
 
@@ -28,8 +28,8 @@
   font-size: var(--font-size-xs);
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  color: var(--color-text-secondary);
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
   border-bottom: 1px solid var(--color-border);
   white-space: nowrap;
 }
@@ -45,8 +45,16 @@
   border-bottom: none;
 }
 
+.table tbody tr {
+  transition: background-color 150ms ease;
+}
 .table tbody tr:hover {
-  background: var(--color-surface-alt);
+  background: color-mix(in srgb, var(--color-primary) 5%, var(--color-surface));
+}
+/* A thin AI-colored rail on the hovered clickable row's leading edge -- signals "this
+   opens" without shifting any column. */
+.table__row--clickable:hover td:first-child {
+  box-shadow: inset 3px 0 0 var(--color-primary);
 }
 
 .table__row--clickable {
@@ -58,10 +66,87 @@
   outline-offset: -2px;
 }
 
+/* ---- Phones: each row becomes a stacked card of "Label  value" lines ----
+   A 640px-min-width table forced sideways scrolling and hid columns off-screen on a
+   phone. Every <td> carries its column header as data-label (see Table.tsx), so the
+   label can be shown inline instead of in a header row. */
 @media (max-width: 640px) {
-  .table th,
+  .table-wrapper:not(.table-wrapper--empty) {
+    overflow: visible;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+  .table {
+    min-width: 0;
+  }
+  /* Header row is redundant once each cell is labelled; kept for screen readers. */
+  .table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .table,
+  .table tbody,
+  .table tr,
   .table td {
-    padding: var(--space-2) var(--space-3);
+    display: block;
+  }
+  .table tbody {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+  .table tbody tr {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding: var(--space-2) var(--space-4);
+  }
+  .table tbody tr:hover {
+    background: var(--color-surface);
+  }
+  .table__row--clickable:active {
+    border-color: var(--color-primary);
+  }
+  .table__row--clickable:hover td:first-child {
+    box-shadow: none;
+  }
+  .table td,
+  .table tbody tr:last-child td {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    padding: 9px 0;
     font-size: var(--font-size-sm);
+    text-align: right;
+    overflow-wrap: anywhere;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .table td:last-child,
+  .table tbody tr:last-child td:last-child {
+    border-bottom: none;
+  }
+  .table td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: var(--font-size-xs);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    text-align: left;
+  }
+  /* Action-only columns have no header text -- right-align their buttons. */
+  .table tbody td[data-label='']::before {
+    display: none;
+  }
+  .table tbody tr td[data-label=''] {
+    justify-content: flex-end;
   }
 }

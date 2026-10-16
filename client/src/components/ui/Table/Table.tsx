@@ -58,7 +58,9 @@ export default function Table<T>({ columns, rows, rowKey, onRowClick, emptyMessa
               role={onRowClick ? 'button' : undefined}
             >
               {columns.map((col) => (
-                <td key={col.key}>{col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? '')}</td>
+                <td key={col.key} data-label={col.header}>
+                  {col.render ? col.render(row) : String((row as Record<string, unknown>)[col.key] ?? '')}
+                </td>
               ))}
             </tr>
           ))}

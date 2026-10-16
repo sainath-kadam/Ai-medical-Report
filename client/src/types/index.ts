@@ -106,7 +106,23 @@ export interface StudyFile {
   mimeType: string;
   sizeBytes: number;
   uploadedAt: string;
-  signedUrl?: string;
+  // Set once storage cleanup deleted the stored video (oldest videos go first once storage
+  // passes 50%); signedUrl is null from then on, frameUrls stay.
+  purgedAt?: string | null;
+  // Videos: "compressing" while the reference copy is being stored, "failed" if that
+  // didn't work; null/absent = ready. signedUrl is null until it's ready.
+  // "slices_only": a ZIP (MRI/CT export) -- only the picked slices are kept, not the ZIP.
+  processingStatus?: 'compressing' | 'failed' | 'slices_only' | null;
+  // Videos: links to the full-quality frames cut from the original upload -- exactly what
+  // the AI read. Kept even after the video itself is deleted.
+  frameUrls?: string[];
+  // ZIPs only: what was picked -- one label per frameUrls entry, plus per-series counts.
+  extraction?: {
+    labels: string[];
+    totalImages: number;
+    series: { label: string; slices: number; picked: number }[];
+  } | null;
+  signedUrl?: string | null;
 }
 
 export interface StudyFindings {

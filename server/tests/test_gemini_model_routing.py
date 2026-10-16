@@ -152,14 +152,46 @@ async def test_pro_with_zero_quota_falls_back_to_the_standard_model_with_no_retr
 
 
 @pytest.mark.asyncio
-async def test_transient_error_retries_once_then_fails_over_and_records_the_server(gemini):
+async def test_busy_model_fails_over_immediately_and_records_the_server(gemini):
+    """A 503 "high demand" switches straight to the next model — no same-model retry
+    (each 503 takes seconds to come back, so retrying a busy model first cost ~10s)."""
     busy = _SdkError(503, "503 UNAVAILABLE. This model is currently experiencing high demand.")
     models = gemini.install({"std-text": [busy, busy]})
     generated = await gp.GeminiReportProvider().generate("Org", _sections(), _ctx(), StructuredFindings(), False)
 
-    assert models.calls == ["std-text", "std-text", "generic-fallback"]
-    assert gemini.sleeps == [1.0]
+    assert models.calls == ["std-text", "generic-fallback"]
+    assert gemini.sleeps == []
     assert generated.model_used == "generic-fallback"  # never the model that 503'd
+
+
+@pytest.mark.asyncio
+async def test_rate_limited_model_also_fails_over_immediately(gemini):
+    models = gemini.install({"std-text": _SdkError(429, "429 RESOURCE_EXHAUSTED. Rate limit, retry in 30s.")})
+    generated = await gp.GeminiReportProvider().generate("Org", _sections(), _ctx(), StructuredFindings(), False)
+
+    assert models.calls == ["std-text", "generic-fallback"]
+    assert generated.model_used == "generic-fallback"
+
+
+@pytest.mark.asyncio
+async def test_last_model_in_chain_still_retries_when_busy(gemini):
+    busy = _SdkError(503, "503 UNAVAILABLE. high demand")
+    models = gemini.install({"std-text": busy, "generic-fallback": [busy, _REPORT_JSON]})
+    generated = await gp.GeminiReportProvider().generate("Org", _sections(), _ctx(), StructuredFindings(), False)
+
+    assert models.calls == ["std-text", "generic-fallback", "generic-fallback"]
+    assert gemini.sleeps == [1.0]
+    assert generated.model_used == "generic-fallback"
+
+
+@pytest.mark.asyncio
+async def test_server_error_still_retries_the_same_model_first(gemini):
+    models = gemini.install({"std-text": [_SdkError(500, "500 INTERNAL"), _REPORT_JSON]})
+    generated = await gp.GeminiReportProvider().generate("Org", _sections(), _ctx(), StructuredFindings(), False)
+
+    assert models.calls == ["std-text", "std-text"]
+    assert gemini.sleeps == [1.0]
+    assert generated.model_used == "std-text"
 
 
 @pytest.mark.asyncio
@@ -170,3 +202,71 @@ async def test_whole_chain_exhausted_raises_actionable_quota_error(gemini):
         await gp.GeminiImagingProvider().analyze(_ctx(), high_accuracy_mode=True)
     assert excinfo.value.code == "AI_QUOTA_EXCEEDED"
     assert "pro, std-imaging, generic-fallback" in excinfo.value.message
+
+
+# --- How many AI calls one report costs (analysis_service.generate_report_content) -------
+
+
+@pytest.mark.asyncio
+async def test_a_standard_report_costs_two_ai_calls(gemini):
+    """Imaging + report text; the report call's own summary is used — no third call."""
+    from app.services.analysis_service import generate_report_content
+
+    models = gemini.install()
+    findings = await gp.GeminiImagingProvider().analyze(_ctx(), high_accuracy_mode=False)
+    generated = await generate_report_content(gp.GeminiReportProvider(), "Org", _sections(), _ctx(), findings, False)
+
+    assert models.calls == ["std-imaging", "std-text"]
+    assert generated.summary == "s"  # from the report call itself
+
+
+@pytest.mark.asyncio
+async def test_high_accuracy_report_keeps_the_pro_summary_call(gemini):
+    from app.services.analysis_service import generate_report_content
+
+    models = gemini.install()
+    findings = await gp.GeminiImagingProvider().analyze(_ctx(), high_accuracy_mode=True)
+    generated = await generate_report_content(gp.GeminiReportProvider(), "Org", _sections(), _ctx(), findings, True)
+
+    assert sorted(models.calls) == ["pro", "pro", "std-text"]
+    assert generated.summary == "plain summary text"  # the Pro summary wins
+
+
+class _CountingReportProvider:
+    def __init__(self, summary: str = "report-call summary") -> None:
+        self.calls: list[str] = []
+        self.summary = summary
+
+    async def generate(self, organization_name, sections, context, findings, high_accuracy_mode):
+        from app.ai.base import GeneratedContent
+
+        self.calls.append("generate")
+        return GeneratedContent(summary=self.summary, sections=[], impression="i", recommendations="r", model_used="m")
+
+    async def summarize_findings(self, organization_name, context, findings, high_accuracy_mode=False):
+        self.calls.append("summarize")
+        return "separate summary"
+
+
+@pytest.mark.asyncio
+async def test_unanalyzable_imaging_gets_a_fixed_summary_not_a_model_one():
+    from app.services.analysis_service import generate_report_content
+
+    provider = _CountingReportProvider()
+    findings = StructuredFindings(observations=[], raw_summary="", analyzable=False, unanalyzable_reason="image is blank")
+    generated = await generate_report_content(provider, "Org", _sections(), _ctx(), findings, False)
+
+    assert provider.calls == ["generate"]
+    assert generated.summary == "Imaging could not be analyzed: image is blank."
+
+
+@pytest.mark.asyncio
+async def test_empty_summary_from_the_report_call_falls_back_to_the_imaging_summary():
+    from app.services.analysis_service import generate_report_content
+
+    provider = _CountingReportProvider(summary="  ")
+    findings = StructuredFindings(observations=["x"], raw_summary="imaging summary", analyzable=True)
+    generated = await generate_report_content(provider, "Org", _sections(), _ctx(), findings, False)
+
+    assert provider.calls == ["generate"]
+    assert generated.summary == "imaging summary"

@@ -1,18 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
-import {
-  FiAlertTriangle,
-  FiArrowLeft,
-  FiCheckCircle,
-  FiClock,
-  FiCpu,
-  FiDownload,
-  FiFile,
-  FiImage,
-  FiRefreshCw,
-  FiUploadCloud,
-} from 'react-icons/fi';
+import { FiArrowLeft, FiClock, FiCpu, FiDownload, FiFile, FiImage, FiUploadCloud } from 'react-icons/fi';
 import { studyApi } from '../../api/study.api';
 import { reportApi } from '../../api/report.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
@@ -39,6 +28,7 @@ import StatusBadge from '../../components/common/StatusBadge/StatusBadge';
 import FileDropzone from '../../components/upload/FileDropzone/FileDropzone';
 import Tabs from '../../components/ui/Tabs/Tabs';
 import ReportWorkspace from '../../components/reports/ReportWorkspace/ReportWorkspace';
+import { videoTooLongMessage } from '../../utils/videoLimits';
 import './StudyDetail.css';
 
 type TabKey = 'overview' | 'images' | 'report' | 'history';
@@ -163,8 +153,13 @@ export default function StudyDetail() {
 
   async function handleUpload() {
     if (!pendingFile || !study) return;
-    setIsUploading(true);
     setUploadError('');
+    const tooLong = await videoTooLongMessage(pendingFile);
+    if (tooLong) {
+      setUploadError(tooLong);
+      return;
+    }
+    setIsUploading(true);
     try {
       const updated = await studyApi.uploadFile(study.id, pendingFile);
       queryClient.setQueryData(queryKeys.studies.detail(study.id), updated);
@@ -467,6 +462,27 @@ export default function StudyDetail() {
               <h3 className="study-detail__card-title">Preview</h3>
               {!selectedFile ? (
                 <p className="study-detail__hint">Select a file to preview it here.</p>
+              ) : selectedFile.purgedAt ? (
+                <p className="study-detail__hint">
+                  This video was removed from storage on {formatDateTime(selectedFile.purgedAt)} to make room for newer
+                  uploads (the oldest videos go first once storage is half full). The report, its findings and the frames
+                  the AI read are kept.
+                </p>
+              ) : selectedFile.processingStatus === 'slices_only' ? (
+                <p className="study-detail__hint">
+                  MRI/CT ZIP — {selectedFile.extraction?.totalImages ?? 0} images in{' '}
+                  {selectedFile.extraction?.series.length ?? 0} series. The ZIP itself isn&apos;t stored; the slices the
+                  AI read are kept below.
+                </p>
+              ) : selectedFile.processingStatus === 'compressing' ? (
+                <p className="study-detail__hint">
+                  Compressing the video for storage — it will play here in a moment. The AI already read full-quality
+                  frames from the original.
+                </p>
+              ) : selectedFile.processingStatus === 'failed' ? (
+                <p className="study-detail__hint">
+                  A playable copy of this video couldn&apos;t be saved. The full-quality frames the AI read are kept below.
+                </p>
               ) : selectedFile.mimeType?.startsWith('video/') && selectedFile.signedUrl ? (
                 <video className="study-detail__preview-media" src={selectedFile.signedUrl} controls />
               ) : selectedFile.mimeType?.startsWith('image/') && selectedFile.signedUrl ? (
@@ -482,6 +498,34 @@ export default function StudyDetail() {
                 <p className="study-detail__hint">
                   {formatFileSize(selectedFile.sizeBytes)} · {formatDateTime(selectedFile.uploadedAt)}
                 </p>
+              )}
+              {selectedFile?.frameUrls && selectedFile.frameUrls.length > 0 && (
+                <>
+                  <p className="study-detail__hint">
+                    {selectedFile.extraction
+                      ? `${selectedFile.frameUrls.length} slices the AI read, spread across the series:`
+                      : `${selectedFile.frameUrls.length} frames the AI read, cut evenly from the original video:`}
+                  </p>
+                  {selectedFile.extraction && (
+                    <ul className="study-detail__series">
+                      {selectedFile.extraction.series.map((series) => (
+                        <li key={series.label}>
+                          {series.label}: {series.picked} of {series.slices}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  <div className="study-detail__frames">
+                    {selectedFile.frameUrls.map((url, index) => {
+                      const label = selectedFile.extraction?.labels[index] ?? `Frame ${index + 1}`;
+                      return (
+                        <a key={url} href={url} target="_blank" rel="noreferrer" title={label}>
+                          <img src={url} alt={label} loading="lazy" />
+                        </a>
+                      );
+                    })}
+                  </div>
+                </>
               )}
             </Card>
           </aside>

@@ -67,3 +67,17 @@ app talks to the filesystem/S3/Firebase SDK directly.
   maliciously crafted key can't path-traverse — but this is a second line of defense, not a
   substitute for keys actually being generated server-side (opaque uuid hex, optionally
   `category/uuid.ext`) as they are today.
+- **Cloudinary stores videos as `video` assets, everything else as `raw`.** Free plan:
+  10MB per raw file, 100MB per video (checked live via the usage API). Video public_ids drop
+  the extension (`video/<id>.mp4` -> `video/<id>`); `download`/`delete` on a `video/` key
+  also try the raw form, for videos stored before this. `upload_file(key, path, ...)`
+  streams from disk (default on the base class: read + `upload`).
+- **Storage budget: oldest videos go once storage passes 50%.** `app/services/
+  retention_service.py::enforce_storage_budget` sums stored file sizes from the DB (not
+  Cloudinary's lagging usage report, which also counts bandwidth) and, while over
+  `STORAGE_CLEANUP_PERCENT` of `STORAGE_CAPACITY_MB`, deletes the oldest stored videos
+  across all organizations via `get_storage().delete` and sets `study_files.purged_at`.
+  Runs hourly (lifespan loop) and right before each compressed video is stored. Only videos
+  are ever deleted — their AI frames stay, so reports/re-analysis are unaffected; photos,
+  DICOM, frames and slices never are. A purged file has `signedUrl: null`. The old
+  age-based rule (`VIDEO_RETENTION_DAYS`) still exists, off by default.

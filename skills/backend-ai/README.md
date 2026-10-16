@@ -8,7 +8,7 @@ report-text generation) plus factory functions that pick a concrete implementati
 
 - `server/app/ai/base.py` — `BaseMedicalImagingProvider` (`analyze` -> `StructuredFindings`)
   and `BaseReportGenerationProvider` (`generate`/`revise`/`classify_change_request`/
-  `summarize_for_notification`/`extract_intake`/`summarize_findings`), the shared
+  `summarize_findings`), the shared
   dataclasses, and `get_imaging_provider()`/`get_report_provider()` — the only place
   deciding which concrete provider class actually runs.
 - `server/app/ai/providers/anthropic_provider.py` — Claude-backed implementation of both
@@ -17,15 +17,16 @@ report-text generation) plus factory functions that pick a concrete implementati
   default; the org's High-Accuracy Mode toggle swaps `GEMINI_HIGH_ACCURACY_MODEL` (Pro) in
   for image interpretation + the clinical summary only (`_tiered`).
 - `server/app/ai/providers/mock_provider.py` — zero-cost fallback used whenever no
-  provider is configured; returns clearly-labeled placeholder content (except
-  `extract_intake`, see below).
+  provider is configured; returns clearly-labeled placeholder content.
 
 ## Non-obvious things
 
-- **`generate()` and `summarize_findings()` run concurrently** (`asyncio.gather` in
-  `AnalysisService.run_analysis`/`ReportService.regenerate_report` — safe since neither
-  depends on the other's output), and the caller always overwrites `generated.summary`
-  with `summarize_findings()`'s result. Gemini uses four independent model settings —
+- **A standard report costs 2 AI calls: `analyze()` + `generate()`.** The report-writing
+  step is `analysis_service.generate_report_content` (shared by analysis and regenerate):
+  normally `generate()` alone, and its own `summary` (the prompt asks for the 2-4 sentence
+  clinical summary) is used. Only with High-Accuracy Mode does `summarize_findings()` also
+  run (concurrently), on the Pro model, and its result wins. Unanalyzable imaging gets a
+  fixed "Imaging could not be analyzed: ..." summary with no model call. Gemini uses four independent model settings —
   `GEMINI_IMAGING_MODEL`/`GEMINI_SUMMARY_MODEL` (both default `gemini-3.8-flash`; Pro
   models 404 or hit zero free-tier quota — verified live, see `config.py`),
   `GEMINI_HIGH_ACCURACY_MODEL` (default `gemini-3.1-pro-preview`, replaces those two while
@@ -76,7 +77,4 @@ report-text generation) plus factory functions that pick a concrete implementati
   provider) always stores generated reports as `status="ai_generated"`/`author="ai"`,
   and only an explicit clinician finalize action can move a report past that.
 - `MockReportProvider`/`MockImagingProvider` return an identical, clearly-labeled note for
-  every field so it's never ambiguous the content isn't real. `extract_intake` is the one
-  exception: since the chat-style study-intake flow is unusable with pure placeholders,
-  the mock provider runs a real (if crude) regex/keyword heuristic there instead of an
-  LLM call — it still never claims to be AI-generated.
+  every field so it's never ambiguous the content isn't real.

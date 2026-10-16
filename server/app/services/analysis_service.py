@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+
+import anyio
 import json
 from datetime import date, datetime, timezone
 from typing import Any
@@ -34,6 +36,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.base import (
+    StructuredFindings,
     StudyContext,
     TemplateSectionSpec,
     get_imaging_provider,
@@ -54,6 +57,8 @@ from app.services.notification_service import NotificationService
 from app.storage import get_storage
 from app.utils.ids import to_public
 from app.utils.media_conversion import dicom_to_png_bytes, extract_video_frames
+from app.core.background import schedule
+from app.database.connection import get_session_factory
 
 logger = get_logger(__name__)
 
@@ -66,10 +71,43 @@ _IN_FLIGHT_STATUSES = ("queued", "preprocessing", "analyzing", "generating_repor
 # Upper bound on how many of a study's images go to the imaging model in one call — enough
 # for a multi-view plain film or a handful of key CT/MRI slices, while keeping a study with
 # hundreds of uploaded frames from producing an enormous (and expensive) request.
-MAX_ANALYSIS_IMAGES = 8
+MAX_ANALYSIS_IMAGES = 16
 
 
-async def load_study_images(files: list[dict[str, Any]]) -> list[tuple[bytes, str]]:
+async def generate_report_content(
+    report_provider, organization_name: str, sections, context: StudyContext, findings: StructuredFindings, high_accuracy: bool
+):
+    """The report-writing step shared by analysis and regenerate: 1 AI call normally,
+    2 with High-Accuracy Mode.
+
+    Standard mode: `generate()` already returns a clinical summary (its prompt asks for
+    the same 2-4 sentence at-a-glance summary `summarize_findings` writes), so it's used as
+    is — a separate summary call would only spend another request (a third of every
+    report's AI calls) on the same model tier. High-Accuracy Mode keeps the separate
+    `summarize_findings()` call, run concurrently, because there it runs on the stronger
+    model (GEMINI_HIGH_ACCURACY_MODEL) — the reason the org turned that mode on.
+
+    Unanalyzable imaging gets a fixed summary saying so: no model call can add anything,
+    and it must never read like a normal summary."""
+    if high_accuracy:
+        clinical_summary, generated = await asyncio.gather(
+            report_provider.summarize_findings(organization_name, context, findings, high_accuracy),
+            report_provider.generate(organization_name, sections, context, findings, high_accuracy),
+        )
+        generated.summary = clinical_summary
+        return generated
+
+    generated = await report_provider.generate(organization_name, sections, context, findings, high_accuracy)
+    if not findings.analyzable:
+        generated.summary = f"Imaging could not be analyzed: {findings.unanalyzable_reason or 'unknown reason'}."
+    elif not (generated.summary or "").strip():
+        generated.summary = findings.raw_summary
+    return generated
+
+
+async def load_study_images(
+    files: list[dict[str, Any]], preloaded: dict[str, bytes] | None = None
+) -> list[tuple[bytes, str]]:
     """Downloads every viewable image on a study (in upload order, capped at
     MAX_ANALYSIS_IMAGES) as (bytes, mime_type) pairs for `StudyContext.images`. Shared by
     `AnalysisService.run_analysis` and `ReportService.apply_change_request` so both analysis
@@ -80,7 +118,13 @@ async def load_study_images(files: list[dict[str, Any]]) -> list[tuple[bytes, st
     `app.utils.media_conversion`, which fails soft (None/[]) rather than raising, so one
     unreadable file just doesn't contribute rather than failing the whole study. If nothing
     on the study converts to a usable image, the first file's raw bytes are still sent so
-    the provider can report it as unanalyzable itself."""
+    the provider can report it as unanalyzable itself.
+
+    `preloaded` maps storage keys to bytes the caller already holds (the intake flow passes
+    the file it just uploaded), so analysis doesn't download it straight back from storage.
+    Files purged by the video-retention job (`purgedAt`) are skipped: their bytes are gone.
+    Decoding runs in a worker thread -- OpenCV/pydicom are synchronous, and decoding a large
+    video on the event loop would stall every other request for its duration."""
     storage = get_storage()
     images: list[tuple[bytes, str]] = []
     first_file: tuple[bytes, str] | None = None
@@ -88,19 +132,34 @@ async def load_study_images(files: list[dict[str, Any]]) -> list[tuple[bytes, st
     for file in files:
         if len(images) >= MAX_ANALYSIS_IMAGES:
             break
+        if file.get("frameKeys"):
+            # A video or a ZIP: read the full-quality frames/slices picked at upload — never
+            # the compressed reference video (and never the video or ZIP itself).
+            for frame_key in file["frameKeys"][: MAX_ANALYSIS_IMAGES - len(images)]:
+                frame = (preloaded or {}).get(frame_key)
+                if frame is None:
+                    frame = await storage.download(frame_key)
+                images.append((frame, "image/png" if frame_key.endswith(".png") else "image/jpeg"))
+            continue
+        if file.get("purgedAt"):
+            continue
         mime_type = file.get("mimeType") or "application/octet-stream"
-        raw = await storage.download(file["storageKey"])
+        raw = (preloaded or {}).get(file["storageKey"])
+        if raw is None:
+            raw = await storage.download(file["storageKey"])
         if first_file is None:
             first_file = (raw, mime_type)
 
         if mime_type.startswith("image/"):
             images.append((raw, mime_type))
         elif mime_type.startswith("application/dicom") or (file.get("fileName") or "").lower().endswith(".dcm"):
-            png = dicom_to_png_bytes(raw)
+            png = await anyio.to_thread.run_sync(dicom_to_png_bytes, raw)
             if png is not None:
                 images.append((png, "image/png"))
         elif mime_type.startswith("video/"):
-            frames = extract_video_frames(raw, MAX_ANALYSIS_IMAGES - len(images))
+            # Older videos, stored before frames were cut at upload (newer ones are handled
+            # above via frameKeys and never reach here).
+            frames = await anyio.to_thread.run_sync(extract_video_frames, raw, MAX_ANALYSIS_IMAGES - len(images))
             images.extend((frame, "image/jpeg") for frame in frames)
 
     if not images and first_file is not None:
@@ -167,7 +226,9 @@ class AnalysisService:
     # Cross-domain entry point (CONTRACTS.md §12) — called by the analysis worker.
     # ------------------------------------------------------------------
 
-    async def run_analysis(self, study_id: str, organization_id: str) -> dict[str, Any]:
+    async def run_analysis(
+        self, study_id: str, organization_id: str, *, preloaded: dict[str, bytes] | None = None
+    ) -> dict[str, Any]:
         study = await self.studies.find_by_id_scoped(study_id, organization_id)
         if not study:
             raise AppError.not_found("Study not found", "STUDY_NOT_FOUND")
@@ -248,7 +309,7 @@ class AnalysisService:
             )
 
             # Every image on the study, not just the first upload — see load_study_images.
-            images = await load_study_images(files)
+            images = await load_study_images(files, preloaded)
             image_bytes, image_mime_type = images[0] if images else (None, None)
 
             context = StudyContext(
@@ -300,17 +361,9 @@ class AnalysisService:
                 for section in template.get("sections", [])
             ]
 
-            # summarize_findings() (may run on a different, summary-specialized model —
-            # see GeminiReportProvider.summarize_findings / GEMINI_SUMMARY_MODEL) and
-            # generate() both read only `findings`, independently of each other, so they
-            # run concurrently rather than back-to-back — the report's summary field still
-            # ends up as exactly summarize_findings()'s result, never generate()'s own
-            # guess at it, same as before.
-            clinical_summary, generated = await asyncio.gather(
-                report_provider.summarize_findings(organization.get("name", ""), context, findings, high_accuracy),
-                report_provider.generate(organization.get("name", ""), sections, context, findings, high_accuracy),
+            generated = await generate_report_content(
+                report_provider, organization.get("name", ""), sections, context, findings, high_accuracy
             )
-            generated.summary = clinical_summary
 
             next_version_number = (existing_report["currentVersion"] + 1) if existing_report else 1
             version = {
@@ -436,7 +489,9 @@ class AnalysisService:
     # combined POST /studies/intake flow (StudyService.create_from_intake).
     # ------------------------------------------------------------------
 
-    async def start_analysis(self, study_id: str, organization_id: str) -> dict[str, Any]:
+    async def start_analysis(
+        self, study_id: str, organization_id: str, *, preloaded: dict[str, bytes] | None = None
+    ) -> dict[str, Any]:
         """Creates the `queued` analysis_job row, then runs `run_analysis` inline (see
         module docstring — no background worker exists). Returns `{jobId, report}`: `report`
         is the newly created draft (`to_public`-shaped) on success, or `None` if analysis
@@ -471,9 +526,15 @@ class AnalysisService:
         )
         job_id = job["_id"]
 
+        if settings.analysis_in_background:
+            # Returns now; the job row carries progress (queued -> preprocessing ->
+            # analyzing -> generating_report -> completed/failed) for the frontend to poll.
+            schedule(_run_analysis_in_background(study_id, organization_id, preloaded))
+            return {"jobId": job_id, "report": None}
+
         report: dict[str, Any] | None = None
         try:
-            report = await self.run_analysis(study_id, organization_id)
+            report = await self.run_analysis(study_id, organization_id, preloaded=preloaded)
         except Exception:
             report = None
 
@@ -514,3 +575,51 @@ class AnalysisService:
                 "completedAt": None,
             }
         )
+
+
+async def _run_analysis_in_background(study_id: str, organization_id: str, preloaded: dict[str, bytes] | None) -> None:
+    """`run_analysis` on its own DB session, outliving the request that started it. A
+    failure is already recorded on the job (status/error/errorCode) by `run_analysis`
+    itself, which is where the polling frontend reads it — nothing to re-raise to."""
+    try:
+        async with get_session_factory()() as session:
+            await AnalysisService(session).run_analysis(study_id, organization_id, preloaded=preloaded)
+    except Exception:
+        pass
+
+
+async def fail_interrupted_analyses(session) -> int:
+    """Background analyses die with the process: at startup, any job still queued/in
+    progress was interrupted by the restart. Mark it failed (with a clear, retryable
+    message) — otherwise the "already in progress" guard would block re-running that study
+    forever. Walks organizations to keep every query tenant-scoped."""
+    jobs = AnalysisJobRepository(session)
+    studies = StudyRepository(session)
+    organizations = OrganizationRepository(session)
+    failed = 0
+    skip = 0
+    while True:
+        orgs, total = await organizations.list_all(skip=skip, limit=100)
+        for org in orgs:
+            stuck, _ = await jobs.list_scoped(
+                org["_id"], {"status": {"$in": list(_IN_FLIGHT_STATUSES)}}, sort=[("createdAt", 1)], skip=0, limit=1000
+            )
+            for job in stuck:
+                await jobs.update_scoped(
+                    job["_id"],
+                    org["_id"],
+                    {
+                        "status": "failed",
+                        "error": "The analysis was interrupted by a server restart. Please run it again.",
+                        "errorCode": "ANALYSIS_INTERRUPTED",
+                        "completedAt": datetime.now(timezone.utc).isoformat(),
+                    },
+                )
+                await studies.update_scoped(job["studyId"], org["_id"], {"status": "failed"})
+                failed += 1
+        skip += 100
+        if skip >= total:
+            break
+    if failed:
+        logger.warning("Marked %d interrupted analysis job(s) as failed", failed)
+    return failed

@@ -23,7 +23,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 
 from app.database.models import Study, StudyFile
 from app.repositories.base import BaseRepository
@@ -39,6 +39,10 @@ def _file_to_dict(row: StudyFile) -> dict[str, Any]:
         "sizeBytes": row.size_bytes,
         "uploadedBy": row.uploaded_by,
         "uploadedAt": row.uploaded_at.isoformat(),
+        "purgedAt": row.purged_at.isoformat() if row.purged_at else None,
+        "frameKeys": row.frame_keys or [],
+        "processingStatus": row.processing_status,
+        "extraction": row.extraction,
     }
 
 
@@ -127,6 +131,9 @@ class StudyRepository(BaseRepository):
                 size_bytes=file_dict["sizeBytes"],
                 uploaded_by=file_dict["uploadedBy"],
                 uploaded_at=datetime.fromisoformat(file_dict["uploadedAt"]),
+                frame_keys=file_dict.get("frameKeys") or None,
+                processing_status=file_dict.get("processingStatus"),
+                extraction=file_dict.get("extraction"),
             )
         )
         await self.session.execute(
@@ -134,6 +141,86 @@ class StudyRepository(BaseRepository):
         )
         await self.session.commit()
         return await self.find_by_id_scoped(study_id, organization_id)
+
+    async def list_expired_video_files(
+        self, organization_id: str, uploaded_before: datetime, limit: int = 100
+    ) -> list[dict[str, Any]]:
+        """Video files in this organization uploaded before `uploaded_before` whose bytes
+        are still in storage. Used by the video-retention job (retention_service.py)."""
+        stmt = (
+            select(StudyFile)
+            .join(Study, Study.id == StudyFile.study_id)
+            .where(
+                Study.organization_id == organization_id,
+                StudyFile.mime_type.like("video/%"),
+                StudyFile.uploaded_at < uploaded_before,
+                StudyFile.purged_at.is_(None),
+            )
+            .order_by(StudyFile.uploaded_at)
+            .limit(limit)
+        )
+        rows = (await self.session.execute(stmt)).scalars().all()
+        return [_file_to_dict(r) for r in rows]
+
+    async def update_file(self, file_id: str, organization_id: str, values: dict[str, Any]) -> None:
+        """Updates one file row (`processingStatus`/`sizeBytes`, set by the background video
+        compression). Org-scoped through the parent study, like every other query here."""
+        columns = {"processingStatus": "processing_status", "sizeBytes": "size_bytes"}
+        study_ids = select(Study.id).where(Study.organization_id == organization_id)
+        await self.session.execute(
+            update(StudyFile)
+            .where(StudyFile.id == file_id, StudyFile.study_id.in_(study_ids))
+            .values({columns[key]: value for key, value in values.items()})
+        )
+        await self.session.commit()
+
+    async def list_files_by_processing_status(self, organization_id: str, status: str) -> list[dict[str, Any]]:
+        stmt = (
+            select(StudyFile)
+            .join(Study, Study.id == StudyFile.study_id)
+            .where(Study.organization_id == organization_id, StudyFile.processing_status == status)
+        )
+        return [_file_to_dict(r) for r in (await self.session.execute(stmt)).scalars().all()]
+
+    async def stored_bytes(self, organization_id: str) -> int:
+        """Total size of this organization's files that are actually in storage right now:
+        not purged, and not a ZIP (never stored), a video still compressing (its size is
+        still the original's) or a video whose copy failed (nothing stored)."""
+        stmt = (
+            select(func.coalesce(func.sum(StudyFile.size_bytes), 0))
+            .join(Study, Study.id == StudyFile.study_id)
+            .where(
+                Study.organization_id == organization_id,
+                StudyFile.purged_at.is_(None),
+                StudyFile.processing_status.is_(None),
+            )
+        )
+        return int((await self.session.execute(stmt)).scalar_one())
+
+    async def list_stored_video_files(self, organization_id: str) -> list[dict[str, Any]]:
+        """This organization's videos that are in storage, oldest first — the only files the
+        storage-budget rule ever deletes (retention_service.enforce_storage_budget)."""
+        stmt = (
+            select(StudyFile)
+            .join(Study, Study.id == StudyFile.study_id)
+            .where(
+                Study.organization_id == organization_id,
+                StudyFile.mime_type.like("video/%"),
+                StudyFile.purged_at.is_(None),
+                StudyFile.processing_status.is_(None),
+            )
+            .order_by(StudyFile.uploaded_at)
+        )
+        return [_file_to_dict(r) for r in (await self.session.execute(stmt)).scalars().all()]
+
+    async def mark_file_purged(self, file_id: str, organization_id: str) -> None:
+        study_ids = select(Study.id).where(Study.organization_id == organization_id)
+        await self.session.execute(
+            update(StudyFile)
+            .where(StudyFile.id == file_id, StudyFile.study_id.in_(study_ids))
+            .values(purged_at=datetime.now(timezone.utc))
+        )
+        await self.session.commit()
 
     async def set_last_findings(self, study_id: str, findings: dict[str, Any]) -> None:
         await self.session.execute(

@@ -6,35 +6,91 @@
 }
 
 .loader__spinner {
+  --loader-size: 28px;
+  --loader-stroke: 3px;
+  position: relative;
   display: inline-block;
-  border-radius: 50%;
-  border: 3px solid var(--color-border);
-  border-top-color: var(--color-primary);
-  animation: loader-spin 0.7s linear infinite;
+  flex-shrink: 0;
+  width: var(--loader-size);
+  height: var(--loader-size);
 }
-
 .loader__spinner--sm {
-  width: 16px;
-  height: 16px;
-  border-width: 2px;
+  --loader-size: 16px;
+  --loader-stroke: 2px;
 }
 .loader__spinner--md {
-  width: 28px;
-  height: 28px;
+  --loader-size: 32px;
+  --loader-stroke: 3px;
 }
 .loader__spinner--lg {
-  width: 44px;
-  height: 44px;
-  border-width: 4px;
+  --loader-size: 56px;
+  --loader-stroke: 3px;
 }
 
+/* Spectrum ring: a conic gradient (transparent tail -> AI colors -> bright head), masked
+   down to a thin stroke. Rotating it reads as a comet sweeping the circle. */
+.loader__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    color-mix(in srgb, var(--color-ai-1) 30%, transparent) 90deg,
+    var(--color-ai-1) 200deg,
+    var(--color-ai-2) 290deg,
+    var(--color-ai-3) 360deg
+  );
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - var(--loader-stroke)), #000 calc(100% - var(--loader-stroke) + 0.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - var(--loader-stroke)), #000 calc(100% - var(--loader-stroke) + 0.5px));
+  animation: ai-spin 0.9s linear infinite;
+}
+
+/* Thin inner arc spinning the other way, slower -- gives the orb depth. */
+.loader__arc {
+  position: absolute;
+  inset: 22%;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  border-top-color: var(--color-ai-3);
+  border-left-color: color-mix(in srgb, var(--color-ai-3) 40%, transparent);
+  animation: ai-spin 1.6s linear infinite reverse;
+}
+
+/* Glowing core that breathes. */
+.loader__core {
+  position: absolute;
+  inset: 38%;
+  border-radius: 50%;
+  background: var(--gradient-ai);
+  box-shadow: 0 0 12px 2px color-mix(in srgb, var(--color-ai-2) 55%, transparent);
+  animation: ai-breathe 1.6s ease-in-out infinite;
+}
+
+/* Labels like "Analyzing imaging…" get a slow light sweep, so a waiting state looks
+   alive rather than frozen. */
 .loader__label {
-  color: var(--color-text-secondary);
   font-size: var(--font-size-base);
+  font-weight: 500;
+  background: linear-gradient(
+    90deg,
+    var(--color-text-secondary) 0%,
+    var(--color-text-secondary) 38%,
+    var(--color-ai-1) 46%,
+    var(--color-ai-2) 50%,
+    var(--color-ai-3) 54%,
+    var(--color-text-secondary) 62%,
+    var(--color-text-secondary) 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: ai-shimmer 2.4s linear infinite;
 }
 
-@keyframes loader-spin {
-  to {
-    transform: rotate(360deg);
-  }
+/* Inside a filled button the spectrum would clash with the button gradient -- use the
+   button's own text color instead. */
+.btn .loader__ring {
+  background: conic-gradient(from 0deg, transparent 0deg, currentColor 300deg, currentColor 360deg);
 }

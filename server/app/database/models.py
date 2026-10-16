@@ -158,6 +158,19 @@ class StudyFile(Base):
     size_bytes: Mapped[int] = mapped_column(Integer)
     uploaded_by: Mapped[str] = mapped_column(String(32))
     uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Set when the stored bytes were deleted by the video-retention job
+    # (app/services/retention_service.py). The row stays so the study still lists the file.
+    purged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Videos only (app/services/video_service.py): storage keys of the full-quality JPEG
+    # frames cut from the original upload — what the AI reads, now and on any re-analysis.
+    frame_keys: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # Videos only: "compressing" while the reference copy is being encoded/stored in the
+    # background, "failed" if that didn't work (the frames are still there); null = ready.
+    processing_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    # ZIP uploads only (app/services/archive_service.py): what was picked from the archive —
+    # {"labels": [per-slice "T2 AX (series 3) · slice 45 of 120"], "totalImages": n,
+    #  "series": [{"label", "slices", "picked"}]}. The slices themselves are in frame_keys.
+    extraction: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class AnalysisJob(Base):

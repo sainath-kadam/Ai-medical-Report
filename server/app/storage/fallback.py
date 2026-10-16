@@ -85,6 +85,20 @@ class FallbackStorageProvider(StorageProvider):
         await self.fallback.upload(key, data, content_type)
         self._fallback_keys.add(key)
 
+    async def upload_file(self, key: str, path: str, content_type: str) -> None:
+        if self.primary is not None:
+            try:
+                await self.primary.upload_file(key, path, content_type)
+                self._fallback_keys.discard(key)
+                return
+            except Exception as exc:
+                logger.warning(
+                    "Storage primary %r failed to store key=%s (%s) — falling back to %r",
+                    self.primary_name, key, type(exc).__name__, self.fallback_name,
+                )
+        await self.fallback.upload_file(key, path, content_type)
+        self._fallback_keys.add(key)
+
     async def download(self, key: str) -> bytes:
         primary_exc: Exception | None = None
         if self.primary is not None and key not in self._fallback_keys:
