@@ -55,10 +55,12 @@ def _build_provider(name: str) -> StorageProvider:
 
 @lru_cache
 def get_storage() -> StorageProvider:
+    from app.storage.cache import CachedStorageProvider
+
     primary = settings.storage_provider
     fallback = settings.storage_fallback_provider
     if fallback and fallback != primary:
         from app.storage.fallback import FallbackStorageProvider
 
-        return FallbackStorageProvider(primary, fallback, _build_provider)
-    return _build_provider(primary)
+        return CachedStorageProvider(FallbackStorageProvider(primary, fallback, _build_provider))
+    return CachedStorageProvider(_build_provider(primary))

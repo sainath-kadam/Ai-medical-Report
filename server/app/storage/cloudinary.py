@@ -35,7 +35,7 @@ import httpx
 
 from app.core.config import settings
 from app.core.exceptions import AppError
-from app.core.security import sign_storage_key
+from app.core.security import signed_file_url
 from app.storage.base import StorageProvider
 
 _RESOURCE_TYPE = "raw"
@@ -45,6 +45,10 @@ _DELIVERY_TYPE = "authenticated"
 # Per-asset plan limits still apply on top of this; a file the plan refuses fails here and
 # lands in STORAGE_FALLBACK_PROVIDER (see fallback.py).
 _CHUNK_SIZE = 20 * 1024 * 1024
+# Connections kept open to Cloudinary for reuse. A ZIP or video stores its 8-16 slices/
+# frames in parallel; the SDK's default pool keeps ONE, so every other upload opened (and
+# threw away) a fresh TLS connection — seen live as "Connection pool is full" warnings.
+_POOL_SIZE = 16
 
 
 def _credentials() -> tuple[str, str, str]:
@@ -80,8 +84,18 @@ class CloudinaryStorageProvider(StorageProvider):
     def __init__(self):
         import cloudinary
 
+        import cloudinary.uploader
+        import cloudinary.utils
+
         cloud_name, api_key, api_secret = _credentials()
         cloudinary.config(cloud_name=cloud_name, api_key=api_key, api_secret=api_secret, secure=True)
+        cloudinary.uploader._http = cloudinary.utils.get_http_connector(
+            cloudinary.config(), {**cloudinary.CERT_KWARGS, "maxsize": _POOL_SIZE}
+        )
+        # One HTTP client for downloads, reused across requests (keeps connections warm
+        # instead of a new TLS handshake per file); recreated if the event loop changes.
+        self._download_client: httpx.AsyncClient | None = None
+        self._download_loop = None
 
     async def upload(self, key: str, data: bytes, content_type: str) -> None:
         stream = io.BytesIO(data)
@@ -145,10 +159,20 @@ class CloudinaryStorageProvider(StorageProvider):
                     raise
         return await self._fetch(self._private_download_url(key))
 
+    def _client(self) -> httpx.AsyncClient:
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+        if self._download_client is None or self._download_loop is not loop:
+            self._download_client = httpx.AsyncClient(
+                timeout=60, follow_redirects=True, limits=httpx.Limits(max_keepalive_connections=_POOL_SIZE)
+            )
+            self._download_loop = loop
+        return self._download_client
+
     async def _fetch(self, url: str) -> bytes:
         try:
-            async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
-                response = await client.get(url)
+            response = await self._client().get(url)
         except httpx.HTTPError as exc:
             raise AppError("Could not reach Cloudinary to fetch the file.", 502, "STORAGE_DOWNLOAD_FAILED") from exc
         if response.status_code == 404:
@@ -169,7 +193,4 @@ class CloudinaryStorageProvider(StorageProvider):
         await anyio.to_thread.run_sync(_destroy)
 
     def generate_signed_url(self, key: str, expires_in: int | None = None) -> str:
-        ttl = expires_in or settings.signed_url_ttl_seconds
-        expires_at = int(time.time()) + ttl
-        token = sign_storage_key(key, expires_at)
-        return f"/api/v1/uploads/file/{key}?token={token}"
+        return signed_file_url(key, expires_in)

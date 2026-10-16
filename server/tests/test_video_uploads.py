@@ -830,3 +830,56 @@ async def test_budget_counts_all_organizations_and_deletes_the_oldest_overall(cl
 
     assert await enforce_storage_budget(db) == 1
     assert storage.deleted == [video_b["storageKey"]]
+
+
+# --- Efficiency: stable, browser-cacheable file links; pooled Cloudinary connections ------
+
+
+def test_signed_file_links_are_stable_within_a_window_and_always_valid(monkeypatch):
+    import time as time_module
+
+    from app.core.security import signature_expires_at, signed_file_url, verify_storage_signature
+
+    ttl = settings.signed_url_ttl_seconds
+    base = 1_800_000_000 - (1_800_000_000 % ttl)  # start of a window
+    monkeypatch.setattr(time_module, "time", lambda: base + 1)
+    first = signed_file_url("x_ray/a.png")
+    monkeypatch.setattr(time_module, "time", lambda: base + ttl - 1)
+    assert signed_file_url("x_ray/a.png") == first  # same URL all window long -> cacheable
+
+    token = first.split("token=", 1)[1]
+    expires = signature_expires_at(token)
+    assert ttl <= expires - (base + ttl - 1) <= 2 * ttl  # always at least a full TTL left
+
+    # Links still expire (verification reads the real clock).
+    monkeypatch.undo()
+    from app.core.security import sign_storage_key
+
+    now = int(time_module.time())
+    assert verify_storage_signature("x_ray/a.png", sign_storage_key("x_ray/a.png", now + 60))
+    assert not verify_storage_signature("x_ray/a.png", sign_storage_key("x_ray/a.png", now - 1))
+
+
+async def test_file_download_is_privately_cacheable_until_the_link_expires(client, signup_and_login, storage):
+    await signup_and_login(email="cache-hdr@example.com", organization_name="Cache Header Clinic")
+    study_id = await _create_study(client)
+    record = await _upload(client, study_id, "scan.png", _TINY_PNG, "image/png")
+
+    response = await client.get(record["signedUrl"].removeprefix("/api/v1"))
+
+    assert response.status_code == 200
+    directive, max_age = response.headers["cache-control"].split(", ")
+    assert directive == "private"
+    assert 0 < int(max_age.removeprefix("max-age=")) <= 2 * settings.signed_url_ttl_seconds
+
+
+def test_cloudinary_keeps_a_connection_pool_for_parallel_uploads(monkeypatch):
+    import cloudinary.uploader
+
+    from app.storage import cloudinary as cloudinary_module
+
+    monkeypatch.setattr(cloudinary_module, "_credentials", lambda: ("demo", "key", "secret"))
+    monkeypatch.setattr(cloudinary.uploader, "_http", cloudinary.uploader._http)  # restored after
+    cloudinary_module.CloudinaryStorageProvider()
+
+    assert cloudinary.uploader._http.connection_pool_kw["maxsize"] == cloudinary_module._POOL_SIZE == 16

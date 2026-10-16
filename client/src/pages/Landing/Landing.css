@@ -34,6 +34,7 @@
   font-family: inherit;
 }
 .landing-btn--sm {
+  white-space: nowrap;
   padding: 9px 18px;
   font-size: var(--font-size-sm);
 }
@@ -120,6 +121,8 @@
   gap: var(--space-4);
 }
 .landing-nav__login {
+  white-space: nowrap;
+  padding: 8px 4px;
   color: var(--color-text-secondary);
   font-size: var(--font-size-base);
   font-weight: 500;
@@ -942,5 +945,21 @@
   .landing-footer {
     flex-direction: column;
     text-align: center;
+  }
+}
+
+/* Narrow phones: logo + theme toggle + "Log in" + "Start free trial" must fit on one
+   row without either action wrapping onto two lines. */
+@media (max-width: 420px) {
+  .landing-nav__actions {
+    gap: var(--space-2);
+  }
+  .landing-btn--sm {
+    padding: 9px 14px;
+  }
+}
+@media (max-width: 360px) {
+  .landing-nav__brand span {
+    display: none;
   }
 }

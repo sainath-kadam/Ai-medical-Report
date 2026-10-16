@@ -14,6 +14,7 @@ import {
   ANALYSIS_JOB_STATUS_META,
   friendlyAnalysisJobError,
   MODALITY_LABELS,
+  SEX_LABELS,
   STUDY_STATUS_META,
   TERMINAL_JOB_STATUSES,
 } from '../../utils/studyMeta';
@@ -362,7 +363,7 @@ export default function StudyDetail() {
                     {patient.sex && (
                       <div>
                         <dt>Sex</dt>
-                        <dd>{patient.sex}</dd>
+                        <dd>{SEX_LABELS[patient.sex]}</dd>
                       </div>
                     )}
                     {patient.contactPhone && (

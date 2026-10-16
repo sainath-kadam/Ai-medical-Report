@@ -8,6 +8,8 @@
   font-weight: 600;
   letter-spacing: 0.01em;
   border: 1px solid transparent;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* A small solid dot ahead of the label -- reads as a live status indicator (like an

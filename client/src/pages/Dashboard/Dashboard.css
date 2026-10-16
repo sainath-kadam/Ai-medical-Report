@@ -240,6 +240,14 @@
   }
 }
 
+/* Below ~360px two tiles per row leave each label ~60px wide, so "AI processing" and
+   "Total studies" break mid-phrase -- stack the tiles instead. */
+@media (max-width: 359px) {
+  .dashboard-page__stats {
+    grid-template-columns: 1fr;
+  }
+}
+
 .dashboard-page__review-banner--error {
   background: var(--color-danger-bg);
   color: var(--color-danger);

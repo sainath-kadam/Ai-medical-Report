@@ -8,13 +8,12 @@ signed-URL-verifying route in `app/api/uploads/routes.py` — never a static fil
 """
 
 import os
-import time
 
 import anyio
 
 from app.core.config import settings
 from app.core.exceptions import AppError
-from app.core.security import sign_storage_key
+from app.core.security import signed_file_url
 from app.storage.base import StorageProvider
 
 
@@ -64,7 +63,4 @@ class LocalStorageProvider(StorageProvider):
             await anyio.to_thread.run_sync(os.remove, path)
 
     def generate_signed_url(self, key: str, expires_in: int | None = None) -> str:
-        ttl = expires_in or settings.signed_url_ttl_seconds
-        expires_at = int(time.time()) + ttl
-        token = sign_storage_key(key, expires_at)
-        return f"/api/v1/uploads/file/{key}?token={token}"
+        return signed_file_url(key, expires_in)

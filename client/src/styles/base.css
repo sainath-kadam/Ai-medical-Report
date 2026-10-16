@@ -71,6 +71,15 @@ textarea {
   color: inherit;
 }
 
+/* Native checkboxes/radios render at ~13px -- too small to tap reliably. */
+input[type='checkbox'],
+input[type='radio'] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
 ::selection {
   background: color-mix(in srgb, var(--color-ai-1) 24%, transparent);
   color: var(--color-text-primary);

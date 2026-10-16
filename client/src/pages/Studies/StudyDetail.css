@@ -398,3 +398,17 @@
     position: static;
   }
 }
+
+@media (pointer: coarse) {
+  .study-detail__back {
+    min-height: 40px;
+  }
+}
+
+@media (pointer: coarse) {
+  .study-detail__patient-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
+  }
+}

@@ -317,7 +317,7 @@
 .report-viewer__idblock {
   display: grid;
   grid-template-columns: auto 1fr auto 1fr;
-  column-gap: var(--space-3);
+  column-gap: var(--space-6);
   row-gap: var(--space-2);
   margin: var(--space-4) var(--space-5) 0;
   padding: var(--space-3) var(--space-4);
@@ -332,6 +332,11 @@
 .report-viewer__idblock dd {
   color: var(--report-text-color, var(--color-text-primary));
   min-width: 0;
+  /* Grid column-gap is the spacing; drop the browser's default 40px <dd> indent. */
+  margin: 0;
+  /* Long unbroken values (accession numbers, MRNs) wrap inside the box instead of
+     running past its border. */
+  overflow-wrap: anywhere;
 }
 
 .report-viewer__exam {
@@ -553,5 +558,25 @@
     flex-direction: column;
     align-items: flex-start;
     gap: var(--space-2);
+  }
+}
+
+/* Phones: even two columns leave values ~100px wide beside "Referring Physician :", so
+   names and IDs broke mid-word ("Meera / Iyer", "MRN- / 000002"). Stack each label over
+   its value instead. */
+@media (max-width: 480px) {
+  .report-viewer__idblock {
+    grid-template-columns: 1fr;
+    row-gap: 0;
+  }
+  .report-viewer__idblock dt {
+    font-size: 0.85em;
+    opacity: 0.75;
+  }
+  .report-viewer__idblock dd {
+    margin-bottom: var(--space-2);
+  }
+  .report-viewer__idblock dd:last-child {
+    margin-bottom: 0;
   }
 }

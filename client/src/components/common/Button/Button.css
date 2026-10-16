@@ -96,3 +96,10 @@
 .btn--danger:hover:not(:disabled) {
   filter: brightness(0.95);
 }
+
+/* Touch screens: small buttons grow to a comfortable tap height. */
+@media (pointer: coarse) {
+  .btn--sm {
+    min-height: 38px;
+  }
+}
