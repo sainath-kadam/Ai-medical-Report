@@ -6,7 +6,7 @@ import { patientApi } from '../../api/patient.api';
 import { apiErrorMessage } from '../../api/axiosInstance';
 import { usePatient, usePatientStudies } from '../../hooks/queries/usePatients';
 import { queryKeys } from '../../lib/queryKeys';
-import { Sex, Study } from '../../types';
+import { Study } from '../../types';
 import Card from '../../components/common/Card/Card';
 import Button from '../../components/common/Button/Button';
 import Modal from '../../components/common/Modal/Modal';
@@ -18,15 +18,8 @@ import PatientForm, { PatientFormValues, patientFormToPayload } from '../../comp
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../components/ui/Toast/ToastProvider';
 import { formatDate } from '../../utils/formatDate';
-import { MODALITY_LABELS, STUDY_STATUS_META } from '../../utils/studyMeta';
+import { MODALITY_LABELS, SEX_LABELS, STUDY_STATUS_META } from '../../utils/studyMeta';
 import './PatientDetail.css';
-
-const SEX_LABEL: Record<Sex, string> = {
-  male: 'Male',
-  female: 'Female',
-  other: 'Other',
-  unspecified: 'Unspecified',
-};
 
 export default function PatientDetail() {
   const { id } = useParams<{ id: string }>();
@@ -173,7 +166,7 @@ export default function PatientDetail() {
           <FiUser size={16} />
           <div>
             <span className="patient-detail__label">Sex</span>
-            <span>{SEX_LABEL[patient.sex ?? 'unspecified']}</span>
+            <span>{SEX_LABELS[patient.sex ?? 'unspecified']}</span>
           </div>
         </div>
         <div className="patient-detail__row">

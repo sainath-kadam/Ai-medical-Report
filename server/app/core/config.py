@@ -106,6 +106,33 @@ class Settings(BaseSettings):
     firebase_credentials_path: str | None = Field(None, alias="FIREBASE_CREDENTIALS_PATH")
     firebase_storage_bucket: str | None = Field(None, alias="FIREBASE_STORAGE_BUCKET")
     max_upload_mb: int = Field(1024, alias="MAX_UPLOAD_MB")
+    # Optional age-based cleanup: delete stored videos this many days after upload. Off (0)
+    # by default — the storage-budget rule below is what keeps storage in check now.
+    video_retention_days: int = Field(0, alias="VIDEO_RETENTION_DAYS")
+    # Storage budget: once stored files pass STORAGE_CLEANUP_PERCENT of STORAGE_CAPACITY_MB,
+    # the OLDEST VIDEOS are deleted until usage is back under it (checked before each new
+    # video is stored, and hourly). Photos, DICOM, and the frames/slices the AI reads are
+    # never deleted — a deleted video keeps its frames, so its report and any re-analysis
+    # still work. Usage is our own tally of stored file sizes (exact and instant), not
+    # Cloudinary's usage report (refreshed only every few hours, and it includes monthly
+    # bandwidth, which deleting files doesn't reduce). Capacity default: Cloudinary's free
+    # plan is 25 credits/month, 1 credit = 1GB stored OR 1GB bandwidth — so 25GB is the
+    # most it could ever hold; set this to your plan. STORAGE_CLEANUP_PERCENT=0 disables.
+    storage_capacity_mb: int = Field(25 * 1024, alias="STORAGE_CAPACITY_MB")
+    storage_cleanup_percent: int = Field(50, alias="STORAGE_CLEANUP_PERCENT")
+    # Target ceiling for the compressed reference copy of an uploaded video. 95 keeps it
+    # under Cloudinary's free-plan 100MB per-video limit; long videos get a lower bitrate.
+    video_compressed_max_mb: int = Field(95, alias="VIDEO_COMPRESSED_MAX_MB")
+    # Longest accepted video, in seconds (0 = no limit). 2 minutes already gets the maximum
+    # 16 AI frames (media_conversion.video_frame_count); longer clips only thin them out.
+    video_max_seconds: int = Field(120, alias="VIDEO_MAX_SECONDS")
+
+    # AI analysis runs in the background: POST /studies/intake and POST /analysis/studies/
+    # {id}/analyze return the job id within a second or two, and the frontend polls
+    # GET /analysis/jobs/{id} for progress — instead of the request blocking for the whole
+    # Gemini round trip (15-25s normally, a minute when Gemini is overloaded). False runs it
+    # inline and returns the finished report in the response (the tests' default).
+    analysis_in_background: bool = Field(True, alias="ANALYSIS_IN_BACKGROUND")
     signed_url_secret: str = Field(..., alias="SIGNED_URL_SECRET")
     signed_url_ttl_seconds: int = Field(300, alias="SIGNED_URL_TTL_SECONDS")
 

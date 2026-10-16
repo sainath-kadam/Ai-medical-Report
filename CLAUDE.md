@@ -31,10 +31,13 @@ cd server && python -m venv .venv && source .venv/bin/activate && pip install -r
 uvicorn app.main:app --reload --port 8000
 # API docs auto-generated at /docs (Swagger) and /redoc once running.
 
-# AI analysis (POST /analysis/studies/{id}/analyze) and report change-requests
-# (POST /reports/{id}/change-request) run synchronously, in-request — there is no
-# background worker process to run separately (see README.md's "load-bearing facts"
-# for the trade-off this implies in production).
+# AI analysis (POST /analysis/studies/{id}/analyze, and the analysis inside
+# POST /studies/intake) runs as an in-process background task (app/core/background.py):
+# the request returns the job id at once and the frontend polls GET /analysis/jobs/{id}.
+# There is still no separate worker process to run. Report change-requests
+# (POST /reports/{id}/change-request) still run synchronously, in-request. Tests run
+# analysis inline (ANALYSIS_IN_BACKGROUND=false via conftest); see
+# tests/test_background_analysis.py for the background mode.
 
 # Tests (in-memory SQLite via aiosqlite — no real Postgres needed; JWT_SECRET/
 # SIGNED_URL_SECRET/AI_PROVIDER=mock only need to be *set to something*, not real values)
@@ -70,9 +73,9 @@ docker compose up --build   # postgres + api + client, wired together
 ## Architecture map
 
 This is a multi-tenant medical-imaging AI reporting platform: FastAPI/SQLAlchemy(async)/
-PostgreSQL backend, React/Vite frontend, AI analysis and report change-requests run
-synchronously in-request (no background job queue — a deliberate, temporary
-simplification, see `README.md`), pluggable AI provider (Gemini by default, or Anthropic
+PostgreSQL backend, React/Vite frontend, AI analysis runs as an in-process background
+task polled by the frontend (no separate worker/queue; report change-requests are still
+in-request — see `README.md`), pluggable AI provider (Gemini by default, or Anthropic
 or a zero-cost mock)
 and storage provider (local disk, Cloudinary, Firebase, or S3 — optionally chained as
 primary + fallback via `STORAGE_FALLBACK_PROVIDER`). Full structure/flow detail: `README.md`. Exact

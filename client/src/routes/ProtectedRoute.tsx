@@ -13,7 +13,7 @@ export default function ProtectedRoute() {
   if (isLoading) {
     return (
       <div className="app-loading-screen">
-        <Loader size="lg" label="Loading Medo AI…" />
+        <Loader size="lg" label="Loading Radiolens…" />
       </div>
     );
   }

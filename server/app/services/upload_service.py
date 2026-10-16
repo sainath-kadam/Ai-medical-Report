@@ -20,12 +20,23 @@ from app.storage import get_storage, storage_category_for
 from app.utils.ids import new_id
 
 _ALLOWED_MIME_PREFIXES = ("image/", "video/", "application/dicom", "application/octet-stream")
+# Browsers label a .zip differently per OS (application/zip, application/x-zip-compressed,
+# sometimes octet-stream), so a ZIP is recognised by type OR by its .zip name.
+_ZIP_MIME_TYPES = ("application/zip", "application/x-zip-compressed", "application/x-zip", "multipart/x-zip")
+
+
+def is_zip_upload(content_type: str, filename: str | None) -> bool:
+    return content_type in _ZIP_MIME_TYPES or (filename or "").lower().endswith(".zip")
 
 
 class UploadService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
         self.studies = StudyRepository(db)
+        # After `upload_file`: storage key -> bytes of what analysis should read for the file
+        # just uploaded (the image itself, or a video's frames), so the intake flow can run
+        # analysis without downloading any of it back from storage.
+        self.preloaded: dict[str, bytes] = {}
 
     async def upload_file(
         self,
@@ -42,11 +53,43 @@ class UploadService:
         record, since callers want both (an audit-log entry needs the file record; the
         response needs the whole study)."""
         content_type = file.content_type or "application/octet-stream"
+        if is_zip_upload(content_type, file.filename):
+            # An MRI/CT export: slices picked per series, the ZIP itself isn't kept — see
+            # archive_service.py.
+            from app.services.archive_service import store_archive
+
+            updated_study, file_record, self.preloaded = await store_archive(
+                file=file,
+                study_id=study_id,
+                organization_id=organization_id,
+                uploaded_by=uploaded_by,
+                db=self.db,
+            )
+            if not updated_study:
+                raise AppError.not_found("Study not found", "STUDY_NOT_FOUND")
+            return updated_study, file_record
+
         if not any(content_type.startswith(prefix) for prefix in _ALLOWED_MIME_PREFIXES):
             raise AppError.bad_request(
-                f"Unsupported file type: {content_type}. Upload an image, video, or DICOM file.",
+                f"Unsupported file type: {content_type}. Upload an image, video, DICOM, or a ZIP of scan images.",
                 "UNSUPPORTED_FILE_TYPE",
             )
+
+        if content_type.startswith("video/"):
+            # Streamed to disk, frames cut from the original, compressed copy stored in the
+            # background — see video_service.py.
+            from app.services.video_service import store_video
+
+            updated_study, file_record, self.preloaded = await store_video(
+                file=file,
+                study_id=study_id,
+                organization_id=organization_id,
+                uploaded_by=uploaded_by,
+                db=self.db,
+            )
+            if not updated_study:
+                raise AppError.not_found("Study not found", "STUDY_NOT_FOUND")
+            return updated_study, file_record
 
         # Starlette has already spooled the multipart body to a temp file and knows its size,
         # so an oversized upload (MAX_UPLOAD_MB, default 1GB for MRI/ultrasound video) is
@@ -62,6 +105,7 @@ class UploadService:
         category = storage_category_for(content_type, modality)
         storage_key = f"{category}/{new_id()}{extension}"
         await get_storage().upload(storage_key, data, content_type)
+        self.preloaded = {storage_key: data}
 
         file_record = {
             "id": new_id(),

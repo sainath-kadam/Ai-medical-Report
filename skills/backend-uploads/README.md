@@ -43,3 +43,26 @@ list.
 - **Size/mime validation happens after reading the whole file into memory** (`data =
   await file.read()`), not via a streaming check — fine at current expected upload sizes but
   worth knowing if very large files ever become a use case.
+- **Videos take a different path** (`app/services/video_service.py`, called from
+  `UploadService.upload_file` for any `video/*`): rejected over `VIDEO_MAX_SECONDS` (default
+  120; `VIDEO_TOO_LONG`, also checked in the browser), streamed to a temp file in chunks (never
+  held in memory), 8–16 full-quality JPEG frames cut from the ORIGINAL by OpenCV (8 up to
+  30s, then one per 4s — `media_conversion.video_frame_count`) and stored as
+  `video_frames/<fileId>_NN.jpg` (`frameKeys` on the file row; `frameUrls` in responses),
+  then the row is created with `processingStatus: "compressing"` and the request carries
+  on. In the background ffmpeg (`imageio-ffmpeg`'s bundled binary) re-encodes to H.264
+  under `VIDEO_COMPRESSED_MAX_MB`, stores it at `video/<fileId>.mp4`, and sets
+  `processingStatus` to null (or `"failed"`). The original is never stored. Analysis reads
+  `frameKeys`, never the video (`load_study_images`), so compression can't cost it detail.
+  Startup marks rows left "compressing" by a restart as "failed"
+  (`fail_interrupted_compressions`).
+- **ZIPs (MRI/CT exports) take a third path** (`app/services/archive_service.py` +
+  `app/utils/dicom_archive.py`), recognised by MIME or `.zip` name: streamed to disk,
+  validated (no encryption, <=10k entries, <=4GB unpacked, zip-bomb ratio check; members
+  read via `ZipFile.open`, never extracted by name), DICOM grouped by SeriesInstanceUID and
+  ordered by ImagePositionPatient, localizer/scout series dropped, and MAX_ANALYSIS_IMAGES
+  slices spread across series (`_allocate`/`_spread`), converted to PNG and stored as
+  `study_slices/<fileId>_NN.png` in `frameKeys` (+ `extraction` labels/counts). The ZIP is
+  never stored (`processingStatus: "slices_only"`, no signedUrl). Compressed DICOM decodes
+  via `python-gdcm`. Errors: ZIP_INVALID / ZIP_NO_IMAGES / ZIP_ENCRYPTED / ZIP_TOO_LARGE /
+  ZIP_UNREADABLE.

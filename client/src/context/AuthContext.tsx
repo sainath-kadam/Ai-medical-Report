@@ -2,7 +2,46 @@ import axios from 'axios';
 import { createContext, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { authApi } from '../api/auth.api';
 import { tokenStorage } from '../api/axiosInstance';
+import { queryClient } from '../lib/queryClient';
+import { clearPersistedQueryCache } from '../lib/queryPersistence';
 import { Organization, User } from '../types';
+
+// The last /auth/me answer, so a reload with a still-valid token renders the app at once
+// instead of a full-screen loader while /auth/me (on a cold backend, many seconds) runs.
+// refreshProfile still re-checks in the background and corrects or clears it.
+const PROFILE_KEY = 'radiolens_profile';
+
+interface ProfileSnapshot {
+  user: User;
+  organization: Organization | null;
+}
+
+function readProfileSnapshot(): ProfileSnapshot | null {
+  if (!tokenStorage.getAccess()) return null;
+  try {
+    const raw = localStorage.getItem(PROFILE_KEY);
+    return raw ? (JSON.parse(raw) as ProfileSnapshot) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeProfileSnapshot(snapshot: ProfileSnapshot | null) {
+  try {
+    if (snapshot) localStorage.setItem(PROFILE_KEY, JSON.stringify(snapshot));
+    else localStorage.removeItem(PROFILE_KEY);
+  } catch {
+    // Storage blocked: the app just falls back to waiting for /auth/me on reload.
+  }
+}
+
+/** Drops every trace of the previous session's data -- cached pages included -- so a
+ *  different account signing in on this browser never sees it. */
+function clearSessionData() {
+  writeProfileSnapshot(null);
+  queryClient.clear();
+  clearPersistedQueryCache();
+}
 
 interface AuthContextValue {
   user: User | null;
@@ -20,9 +59,11 @@ interface AuthContextValue {
 export const AuthContext = createContext<AuthContextValue | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [organization, setOrganization] = useState<Organization | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [snapshot] = useState(readProfileSnapshot);
+  const [user, setUser] = useState<User | null>(snapshot?.user ?? null);
+  const [organization, setOrganization] = useState<Organization | null>(snapshot?.organization ?? null);
+  // With a snapshot there's nothing to wait for: render now, revalidate in the background.
+  const [isLoading, setIsLoading] = useState(!snapshot);
 
   const refreshProfile = useCallback(async () => {
     if (!tokenStorage.getAccess()) {
@@ -35,6 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await authApi.me();
       setUser(data.user);
       setOrganization(data.organization);
+      writeProfileSnapshot({ user: data.user, organization: data.organization });
     } catch (err) {
       // Only a genuine 401 means the session is actually invalid. Anything else (rate
       // limiting, a 5xx, a dropped connection) is transient -- axiosInstance.ts already
@@ -44,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // end-to-end browser smoke test hitting /auth/me during rapid navigation).
       if (axios.isAxiosError(err) && err.response?.status === 401) {
         tokenStorage.clear();
+        clearSessionData();
         setUser(null);
         setOrganization(null);
       }
@@ -58,6 +101,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const login = useCallback(async (email: string, password: string) => {
     const data = await authApi.login({ email, password });
+    clearSessionData();
     tokenStorage.set(data.accessToken, data.refreshToken);
     setUser(data.user);
     await refreshProfile();
@@ -66,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signup = useCallback(
     async (payload: { name: string; email: string; password: string; organizationName: string }) => {
       const data = await authApi.signup(payload);
+      clearSessionData();
       tokenStorage.set(data.accessToken, data.refreshToken);
       setUser(data.user);
       await refreshProfile();
@@ -76,6 +121,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loginWithGoogle = useCallback(
     async (idToken: string, organizationName?: string) => {
       const data = await authApi.google({ idToken, organizationName });
+      clearSessionData();
       tokenStorage.set(data.accessToken, data.refreshToken);
       setUser(data.user);
       await refreshProfile();
@@ -86,6 +132,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(async () => {
     const refreshToken = tokenStorage.getRefresh();
     tokenStorage.clear();
+    clearSessionData();
     setUser(null);
     setOrganization(null);
     if (refreshToken) {

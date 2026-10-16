@@ -128,3 +128,9 @@
     align-items: stretch;
   }
 }
+
+@media (pointer: coarse) {
+  .patient-detail__back {
+    min-height: 40px;
+  }
+}

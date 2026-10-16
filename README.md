@@ -1,4 +1,4 @@
-# Medo AI
+# Radiolens
 
 A multi-tenant medical imaging AI reporting platform: doctors and clinical staff upload
 medical images (X-ray/CT/MRI/ultrasound), get an AI-drafted preliminary structured report,
@@ -139,22 +139,23 @@ route) renders without a session first.
    disk in dev, S3 in prod); the key is appended to `study.files[]`.
 4. `POST /analysis/studies/{id}/analyze` — gated by `require_active_subscription`
    (see [Trial & billing](#5-trial--billing--gating-ai-report-generation)). Creates an
-   `analysis_job`, then runs the AI pipeline **directly, in-request**:
+   `analysis_job`, returns `200 {jobId}` straight away, and runs the AI pipeline as an
+   **in-process background task** (`app/core/background.py`, own DB session):
    1. loads the study + patient + template
    2. downloads the file bytes from storage
    3. `BaseMedicalImagingProvider.analyze(...)` → `StructuredFindings` (observations, a
       short summary, an analyzable/not flag — never fabricated)
    4. saves those findings onto `study.lastFindings`
-   5. `BaseReportGenerationProvider.summarize_findings(...)` and `.generate(...)` run
-      **concurrently** (`asyncio.gather` — neither depends on the other's output): the
-      former produces a short clinical summary (possibly a different model — see "AI" in
-      the Stack table), the latter the rest of the report prose. The summary call's result
-      always wins for the report's `summary` field.
+   5. `BaseReportGenerationProvider.generate(...)` writes the report, including its
+      clinical summary — so a report costs **2 AI calls** (imaging + report). With
+      High-Accuracy Mode, `.summarize_findings(...)` also runs concurrently on the Pro
+      model and its summary wins (`analysis_service.generate_report_content`).
    6. creates the Report (`version 1`, `author: "ai"`, `status: "ai_generated"`), marks
       the study `"completed"`, creates a Notification, writes an audit log entry
 
-   Returns `200 {jobId}` only once **all** of the above has actually finished — there is
-   no background worker (see [load-bearing facts](#multi-tenancy-ai-and-billing--the-load-bearing-facts)).
+   Progress (queued → preprocessing → analyzing → generating_report → completed/failed)
+   is on the job row. `ANALYSIS_IN_BACKGROUND=false` runs it inline and returns the
+   report in the response instead (the tests' mode). See [load-bearing facts](#multi-tenancy-ai-and-billing--the-load-bearing-facts).
 5. The frontend polls `GET /analysis/jobs/{jobId}` every ~2s until a terminal status,
    then opens the report. Since the job is already done by the time step 4's `POST`
    returns, the very first poll already sees a terminal status instead of watching real
@@ -256,11 +257,12 @@ React + TypeScript + Vite + React Router, plain CSS per component.
   (`AI_PROVIDER`) — nothing in `services/`/`api/` changes. The real provider(s) use a
   tiered model strategy (fast/default/highAccuracy) so imaging interpretation gets a
   capable model while formatting-only revisions route to the cheapest tier.
-- **No background job queue (deliberate, temporary).** Redis/ARQ were removed to drop an
-  infra dependency — analysis and change-requests now run synchronously in-request and
-  return `200 {jobId}` only once the AI work finishes. In production, with a real
-  (non-mock) AI provider, a slow call blocks the request for its full duration —
-  highest-priority item to fix before real load (see below).
+- **Background work runs in the API process, not a queue.** AI analysis (and video
+  compression) run as asyncio tasks on the API's own event loop (`app/core/background.py`):
+  requests return at once, the frontend polls the job. No Redis/worker to run — but the
+  work dies with the process, so startup marks anything left half-done as failed
+  (`fail_interrupted_analyses` / `fail_interrupted_compressions`), and it only works with
+  a single API process. Report change-requests are still synchronous, in-request.
 - **Trial & billing.** Every org starts on a free trial (`TRIAL_DAYS`, capped at
   `TRIAL_DAILY_REPORT_LIMIT` reports/day). `require_active_subscription` gates
   `POST /analysis/studies/{id}/analyze`; only a Stripe-signed webhook

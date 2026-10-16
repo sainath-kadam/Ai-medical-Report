@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import {
@@ -29,6 +29,8 @@ import ReportWorkspace from '../../components/reports/ReportWorkspace/ReportWork
 import NewStudyForm from '../../components/studies/NewStudyForm/NewStudyForm';
 import { getFirstName } from '../../utils/formatName';
 import { useAuth } from '../../hooks/useAuth';
+import { useAnalysisJobPolling } from '../../hooks/useAnalysisJobPolling';
+import { ANALYSIS_JOB_STAGES, ANALYSIS_JOB_STATUS_META, friendlyAnalysisJobError } from '../../utils/studyMeta';
 import './Dashboard.css';
 
 export default function Dashboard() {
@@ -82,6 +84,53 @@ export default function Dashboard() {
   const [intakeFailure, setIntakeFailure] = useState<{ study: Study; message: string } | null>(null);
   const [isRetryingAnalysis, setIsRetryingAnalysis] = useState(false);
 
+  // The AI analysis runs in the background on the server (intake/analyze return straight
+  // away with a job id): while it runs, show its progress here, then open the finished
+  // report for review -- or the failure, with a Retry -- as soon as the job is done.
+  const [analyzingStudy, setAnalyzingStudy] = useState<Study | null>(null);
+  // Read by the job callback below: a ref, not the state above, because a fast first poll
+  // can finish before React re-renders with the new state (the callback would see null).
+  const analyzingStudyRef = useRef<Study | null>(null);
+  const {
+    job: analysisJob,
+    poll: pollAnalysis,
+    reset: resetAnalysisPolling,
+    error: analysisPollError,
+  } = useAnalysisJobPolling(async (finished) => {
+    const study = analyzingStudyRef.current;
+    if (!study) return;
+    analyzingStudyRef.current = null;
+    invalidateReportRelated();
+    if (finished.status === 'failed') {
+      setAnalyzingStudy(null);
+      setIntakeFailure({ study, message: friendlyAnalysisJobError(finished) });
+      return;
+    }
+    let found = false;
+    try {
+      found = await openReportForStudy(study);
+    } catch {
+      /* handled below */
+    }
+    setAnalyzingStudy(null);
+    if (!found) setIntakeFailure({ study, message: 'The analysis finished, but its report could not be loaded.' });
+  });
+
+  function watchAnalysis(study: Study, jobId: string) {
+    setIntakeFailure(null);
+    analyzingStudyRef.current = study;
+    setAnalyzingStudy(study);
+    pollAnalysis(jobId);
+  }
+
+  function leaveAnalysis() {
+    // Only stops watching -- the analysis itself keeps running on the server.
+    resetAnalysisPolling();
+    analyzingStudyRef.current = null;
+    setAnalyzingStudy(null);
+    invalidateDashboard();
+  }
+
   const canManage = user?.role === 'org_admin' || user?.role === 'doctor';
   const isReviewBusy = isSavingReview || isRegeneratingReview || isFinalizingReview || isApplyingReviewChanges;
 
@@ -125,16 +174,9 @@ export default function Dashboard() {
       navigate(`/studies/${result.study.id}`);
       return;
     }
-    // Analysis ran but failed (the backend runs it inline, so the job is already terminal):
-    // fetch its error so the doctor sees *why* there is no report, and can retry from here.
-    let message = 'The AI analysis did not complete.';
-    try {
-      const job = await studyApi.getJob(result.analysisJobId);
-      if (job.error) message = job.error;
-    } catch {
-      /* keep the generic message */
-    }
-    setIntakeFailure({ study: result.study, message });
+    // Analysis is running in the background: watch the job (progress, then the report or
+    // its failure). Also covers an inline run that already failed -- the first poll sees it.
+    watchAnalysis(result.study, result.analysisJobId);
   }
 
   async function handleRetryAnalysis() {
@@ -142,14 +184,9 @@ export default function Dashboard() {
     const { study } = intakeFailure;
     setIsRetryingAnalysis(true);
     try {
-      // Runs inline server-side and resolves once the analysis has finished (or failed).
+      // Returns as soon as the job is queued; progress is shown while it runs.
       const { jobId } = await studyApi.runAnalysis(study.id);
-      const found = await openReportForStudy(study);
-      invalidateReportRelated();
-      if (!found) {
-        const job = await studyApi.getJob(jobId);
-        setIntakeFailure({ study, message: job.error || 'The AI analysis did not complete.' });
-      }
+      watchAnalysis(study, jobId);
     } catch (err) {
       setIntakeFailure({ study, message: apiErrorMessage(err) });
     } finally {
@@ -270,6 +307,52 @@ export default function Dashboard() {
           <h1 className="dashboard-page__upload-title">New study</h1>
         </div>
         <NewStudyForm initialPatientId={preselectedPatientId} onComplete={handleIntakeComplete} />
+      </div>
+    );
+  }
+
+  if (analyzingStudy) {
+    const stageIndex = analysisJob ? ANALYSIS_JOB_STAGES.findIndex((s) => s.status === analysisJob.status) : 0;
+    return (
+      <div className="dashboard-page">
+        <div className="dashboard-page__upload-header">
+          <button className="dashboard-page__back" onClick={leaveAnalysis}>
+            <FiArrowLeft size={15} /> Back to dashboard
+          </button>
+          <h1 className="dashboard-page__upload-title">Generating report</h1>
+        </div>
+        <Card>
+          <div className="dashboard-page__analysis">
+            <p className="dashboard-page__analysis-intro">
+              The scan is saved and the AI is reading it. The report opens here automatically when it&apos;s ready — you
+              can also leave this page; the analysis keeps running and the report will be on the study.
+            </p>
+            <div className="report-workspace__job-steps">
+              {ANALYSIS_JOB_STAGES.filter((stage) => stage.status !== 'ready_for_review').map((stage, idx) => {
+                const state = idx < stageIndex ? 'done' : idx === stageIndex ? 'current' : 'pending';
+                return (
+                  <div key={stage.status} className={`report-workspace__job-step report-workspace__job-step--${state}`}>
+                    <span className="report-workspace__job-step-dot" />
+                    <span>{stage.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+            {analysisPollError ? (
+              <p className="dashboard-page__failure-detail">
+                Lost track of the analysis ({analysisPollError}). It is still running on the server — open the study to
+                see its result.
+              </p>
+            ) : (
+              <Loader size="sm" label={analysisJob ? ANALYSIS_JOB_STATUS_META[analysisJob.status].label : 'Starting…'} />
+            )}
+            <div className="dashboard-page__failure-actions">
+              <Button variant="outline" onClick={() => navigate(`/studies/${analyzingStudy.id}`)}>
+                Open study
+              </Button>
+            </div>
+          </div>
+        </Card>
       </div>
     );
   }

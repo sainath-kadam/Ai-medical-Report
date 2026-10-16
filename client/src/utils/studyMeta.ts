@@ -3,7 +3,7 @@
 // that file covers the Reports feature's `ReportStatus`, this one covers Studies'
 // `StudyStatus` / `Modality` / `AnalysisJobStatus`. statusMeta.ts re-exports
 // STUDY_STATUS_META from here so callers that need both still have one import.
-import { AnalysisJob, AnalysisJobStatus, Modality, StudyStatus } from '../types';
+import { AnalysisJob, AnalysisJobStatus, Modality, Sex, StudyStatus } from '../types';
 
 type Tone = 'info' | 'warning' | 'success' | 'danger' | 'muted';
 
@@ -20,6 +20,15 @@ export const STUDY_STATUS_OPTIONS: { value: StudyStatus; label: string }[] = [
   { value: 'completed', label: 'Completed' },
   { value: 'failed', label: 'Failed' },
 ];
+
+// Display labels for a patient's sex -- shared by PatientDetail and StudyDetail's
+// patient card so the two never show the raw enum value ("female") differently.
+export const SEX_LABELS: Record<Sex, string> = {
+  male: 'Male',
+  female: 'Female',
+  other: 'Other',
+  unspecified: 'Unspecified',
+};
 
 export const MODALITY_LABELS: Record<Modality, string> = {
   x_ray: 'X-Ray',

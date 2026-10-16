@@ -88,7 +88,7 @@
   font-size: var(--font-size-sm);
   color: var(--color-text-primary);
 }
-.sidebar__user span {
+.sidebar__user div span {
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   overflow: hidden;
@@ -101,13 +101,12 @@
   height: 38px;
   min-width: 38px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--color-primary), var(--color-primary-dark));
+  background: var(--color-primary);
   color: var(--color-text-on-primary);
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  box-shadow: 0 3px 10px -2px color-mix(in srgb, var(--color-primary) 45%, transparent);
 }
 
 .sidebar__nav {
@@ -151,8 +150,8 @@
   color: var(--color-text-primary);
 }
 .sidebar__link--active {
-  background: linear-gradient(135deg, var(--color-primary-light), color-mix(in srgb, var(--color-primary) 14%, var(--color-primary-light)));
-  color: var(--color-primary-dark);
+  background: var(--color-primary-light);
+  color: var(--color-primary);
   border-left-color: var(--color-primary);
 }
 
@@ -178,5 +177,15 @@
   .sidebar,
   .sidebar-backdrop {
     display: none;
+  }
+}
+
+@media (pointer: coarse) {
+  .sidebar__close {
+    width: 40px;
+    height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 }

@@ -22,6 +22,12 @@
 .reports-list-page__filters > * {
   min-width: 180px;
 }
+@media (max-width: 640px) {
+  .reports-list-page__filters > * {
+    flex: 1 1 100%;
+    min-width: 0;
+  }
+}
 
 .reports-list-page__error {
   background: var(--color-danger-bg);

@@ -6,9 +6,22 @@ download; there is no static file mount anywhere in this app.
 from abc import ABC, abstractmethod
 
 
+def _read_bytes(path: str) -> bytes:
+    with open(path, "rb") as fh:
+        return fh.read()
+
+
 class StorageProvider(ABC):
     @abstractmethod
     async def upload(self, key: str, data: bytes, content_type: str) -> None: ...
+
+    async def upload_file(self, key: str, path: str, content_type: str) -> None:
+        """Uploads a file from local disk (the compressed video). Default: read it and call
+        `upload`; providers that can stream from a path (Cloudinary) override this."""
+        import anyio
+
+        data = await anyio.to_thread.run_sync(_read_bytes, path)
+        await self.upload(key, data, content_type)
 
     @abstractmethod
     async def download(self, key: str) -> bytes: ...

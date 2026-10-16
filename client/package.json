@@ -1,7 +1,7 @@
 {
   "name": "medscan-client",
   "version": "1.0.0",
-  "description": "Medo AI - frontend (React + TypeScript + Vite)",
+  "description": "Radiolens - frontend (React + TypeScript + Vite)",
   "private": true,
   "type": "module",
   "scripts": {
@@ -24,7 +24,6 @@
   "devDependencies": {
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.0.1",
-    "@testing-library/user-event": "^14.5.2",
     "@types/react": "^18.3.5",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",

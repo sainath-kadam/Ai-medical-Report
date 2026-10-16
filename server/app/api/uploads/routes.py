@@ -16,13 +16,15 @@ purpose:
 
 from __future__ import annotations
 
+import time
+
 from fastapi import APIRouter, Depends, Query, Request, UploadFile
 from fastapi.responses import Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
 from app.core.exceptions import AppError
-from app.core.security import CurrentUser, require_admin_or_doctor, verify_storage_signature
+from app.core.security import CurrentUser, require_admin_or_doctor, signature_expires_at, verify_storage_signature
 from app.repositories.study_repository import StudyRepository
 from app.services.audit_service import AuditService
 from app.services.study_service import with_signed_urls
@@ -79,10 +81,23 @@ async def download_file(storage_key: str, token: str = Query(...), db: AsyncSess
     file_record = await StudyRepository(db).find_file_by_storage_key(storage_key)
     content_type = file_record["mimeType"] if file_record else "application/octet-stream"
     file_name = file_record["fileName"] if file_record else storage_key
+    if not file_record and storage_key.startswith(("video_frames/", "study_slices/")):
+        # A video frame or a ZIP slice the AI read (not a file row of its own) — see
+        # video_service.py / archive_service.py.
+        file_name = storage_key.rsplit("/", 1)[-1]
+        content_type = "image/png" if file_name.endswith(".png") else "image/jpeg"
 
     data = await get_storage().download(storage_key)
+    # The link is the authorization and stays the same URL for its whole window (see
+    # signed_file_url), so the browser may keep the file until the link expires — "private"
+    # keeps it out of any shared/CDN cache. Opening the same study again then costs no
+    # download at all.
+    max_age = max(0, (signature_expires_at(token) or 0) - int(time.time()))
     return Response(
         content=data,
         media_type=content_type,
-        headers={"Content-Disposition": f'inline; filename="{file_name}"'},
+        headers={
+            "Content-Disposition": f'inline; filename="{file_name}"',
+            "Cache-Control": f"private, max-age={max_age}",
+        },
     )

@@ -26,6 +26,10 @@ export function useStudy(id: string | undefined) {
     queryFn: () => studyApi.getById(id!),
     enabled: Boolean(id),
     staleTime: STALE_TIME,
+    // A just-uploaded video is compressed in the background: re-check every 5s until it's
+    // done so the player appears without a manual refresh.
+    refetchInterval: (query) =>
+      query.state.data?.files?.some((file) => file.processingStatus === 'compressing') ? 5000 : false,
   });
 }
 

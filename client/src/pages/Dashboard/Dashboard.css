@@ -79,10 +79,10 @@
   font-size: var(--font-size-2xl);
   /* A subtle gradient on the greeting -- a small, tasteful signature touch on the one
      headline every doctor sees first, every session. */
-  background: linear-gradient(135deg, var(--color-text-primary), color-mix(in srgb, var(--color-primary) 60%, var(--color-text-primary)));
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  font-size: 1.75rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--color-text-primary);
 }
 
 .dashboard-page__loading {
@@ -93,11 +93,46 @@
 
 .dashboard-page__hero-card {
   width: 100%;
-  border-color: var(--color-primary);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 22%, var(--color-border));
   background:
-    radial-gradient(600px circle at 50% 0%, color-mix(in srgb, var(--color-primary) 8%, transparent), transparent 60%),
+    radial-gradient(600px circle at 50% -10%, color-mix(in srgb, var(--color-primary) 7%, transparent), transparent 60%),
     var(--color-surface);
+  box-shadow: var(--shadow-sm);
   text-align: center;
+}
+/* Faint perspective grid fading out toward the bottom, like a scan bed. */
+.dashboard-page__hero-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(color-mix(in srgb, var(--color-primary) 7%, transparent) 1px, transparent 1px),
+    linear-gradient(90deg, color-mix(in srgb, var(--color-primary) 7%, transparent) 1px, transparent 1px);
+  background-size: 32px 32px;
+  mask-image: radial-gradient(ellipse 60% 70% at 50% 40%, black, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 60% 70% at 50% 40%, black, transparent 75%);
+}
+/* Two pulse rings radiating from the upload icon. */
+.dashboard-page__hero-card .empty-state__icon {
+  position: relative;
+}
+.dashboard-page__hero-card .empty-state__icon::before,
+.dashboard-page__hero-card .empty-state__icon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 40%, transparent);
+  animation: ai-ping 2.8s var(--ease-out) infinite;
+  pointer-events: none;
+}
+.dashboard-page__hero-card .empty-state__icon::after {
+  animation-delay: 1.4s;
 }
 .dashboard-page__hero-card .empty-state {
   padding: var(--space-6) var(--space-4);
@@ -137,7 +172,7 @@
   margin-bottom: var(--space-4);
 }
 .dashboard-page__section-header h2 {
-  font-size: var(--font-size-lg);
+  font-size: 1.1rem;
   color: var(--color-text-primary);
 }
 .dashboard-page__section-header a {
@@ -205,6 +240,14 @@
   }
 }
 
+/* Below ~360px two tiles per row leave each label ~60px wide, so "AI processing" and
+   "Total studies" break mid-phrase -- stack the tiles instead. */
+@media (max-width: 359px) {
+  .dashboard-page__stats {
+    grid-template-columns: 1fr;
+  }
+}
+
 .dashboard-page__review-banner--error {
   background: var(--color-danger-bg);
   color: var(--color-danger);
@@ -222,4 +265,18 @@
   display: flex;
   gap: var(--space-3);
   flex-wrap: wrap;
+}
+
+/* Background AI analysis in progress (after intake / a retry). */
+.dashboard-page__analysis {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.dashboard-page__analysis-intro {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
 }

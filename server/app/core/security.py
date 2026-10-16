@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import time
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Literal
@@ -175,6 +176,25 @@ def sign_storage_key(key: str, expires_at: int) -> str:
     message = f"{key}:{expires_at}".encode("utf-8")
     digest = hashlib.sha256(settings.signed_url_secret.encode("utf-8") + message).hexdigest()
     return f"{expires_at}.{digest}"
+
+
+def signed_file_url(key: str, expires_in: int | None = None) -> str:
+    """The app's own same-origin, signed download link for a stored file (served by
+    `GET /uploads/file/{key}`). The expiry is rounded up to a fixed window, so every link
+    to the same file generated within one window is the SAME URL — that's what lets the
+    browser cache the file (the route sends a matching `Cache-Control`) instead of
+    re-downloading it on every page load. Valid for at least `expires_in` seconds
+    (default SIGNED_URL_TTL_SECONDS) and at most twice that."""
+    ttl = expires_in or settings.signed_url_ttl_seconds
+    expires_at = (int(time.time()) // ttl + 2) * ttl
+    return f"/api/v1/uploads/file/{key}?token={sign_storage_key(key, expires_at)}"
+
+
+def signature_expires_at(token: str) -> int | None:
+    try:
+        return int(token.split(".", 1)[0])
+    except (ValueError, AttributeError):
+        return None
 
 
 def verify_storage_signature(key: str, token: str) -> bool:

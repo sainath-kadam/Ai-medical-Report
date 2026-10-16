@@ -19,7 +19,7 @@ export interface NavItem {
 // leaving `roles` unset used to mean "everyone" back when those were the only two roles.
 const CLINICAL_ROLES: UserRole[] = ['org_admin', 'doctor'];
 
-export const NAV_ITEMS: NavItem[] = [
+const NAV_ITEMS: NavItem[] = [
   { to: '/dashboard', label: 'Dashboard', icon: FiHome, end: true, roles: CLINICAL_ROLES },
   { to: '/patients', label: 'Patients', icon: FiUsers, roles: CLINICAL_ROLES },
   { to: '/studies', label: 'Studies', icon: FiFilePlus, roles: CLINICAL_ROLES },

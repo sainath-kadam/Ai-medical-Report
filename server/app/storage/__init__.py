@@ -15,7 +15,7 @@ from app.storage.base import StorageProvider
 # (a real subdirectory for local disk, an S3 key prefix that every S3 console/tool already
 # renders as a folder) instead of one flat namespace. `LocalStorageProvider` also uses this
 # set to validate the prefix before touching the filesystem.
-STORAGE_CATEGORIES = frozenset({"dicom", "video", "x_ray", "ct", "mri", "ultrasound", "other", "pdf", "template_logo"})
+STORAGE_CATEGORIES = frozenset({"dicom", "video", "video_frames", "study_slices", "x_ray", "ct", "mri", "ultrasound", "other", "pdf", "template_logo"})
 
 _IMAGE_MODALITY_CATEGORIES = frozenset({"x_ray", "ct", "mri", "ultrasound", "other"})
 
@@ -55,10 +55,12 @@ def _build_provider(name: str) -> StorageProvider:
 
 @lru_cache
 def get_storage() -> StorageProvider:
+    from app.storage.cache import CachedStorageProvider
+
     primary = settings.storage_provider
     fallback = settings.storage_fallback_provider
     if fallback and fallback != primary:
         from app.storage.fallback import FallbackStorageProvider
 
-        return FallbackStorageProvider(primary, fallback, _build_provider)
-    return _build_provider(primary)
+        return CachedStorageProvider(FallbackStorageProvider(primary, fallback, _build_provider))
+    return CachedStorageProvider(_build_provider(primary))

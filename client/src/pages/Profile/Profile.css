@@ -92,3 +92,9 @@
 .profile-page__theme-toggle:hover {
   text-decoration: underline;
 }
+
+@media (pointer: coarse) {
+  .profile-page__theme-toggle {
+    min-height: 36px;
+  }
+}

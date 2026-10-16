@@ -35,7 +35,7 @@ import httpx
 
 from app.core.config import settings
 from app.core.exceptions import AppError
-from app.core.security import sign_storage_key
+from app.core.security import signed_file_url
 from app.storage.base import StorageProvider
 
 _RESOURCE_TYPE = "raw"
@@ -45,6 +45,10 @@ _DELIVERY_TYPE = "authenticated"
 # Per-asset plan limits still apply on top of this; a file the plan refuses fails here and
 # lands in STORAGE_FALLBACK_PROVIDER (see fallback.py).
 _CHUNK_SIZE = 20 * 1024 * 1024
+# Connections kept open to Cloudinary for reuse. A ZIP or video stores its 8-16 slices/
+# frames in parallel; the SDK's default pool keeps ONE, so every other upload opened (and
+# threw away) a fresh TLS connection — seen live as "Connection pool is full" warnings.
+_POOL_SIZE = 16
 
 
 def _credentials() -> tuple[str, str, str]:
@@ -62,31 +66,71 @@ def _credentials() -> tuple[str, str, str]:
     )
 
 
+def _is_video_key(key: str) -> bool:
+    return key.startswith("video/")
+
+
+def _video_public_id(key: str) -> str:
+    """`video/<id>.mp4` -> `video/<id>`: Cloudinary video public_ids carry no extension."""
+    return key.rsplit(".", 1)[0] if "." in key.rsplit("/", 1)[-1] else key
+
+
+def _video_format(key: str) -> str:
+    name = key.rsplit("/", 1)[-1]
+    return name.rsplit(".", 1)[-1] if "." in name else "mp4"
+
+
 class CloudinaryStorageProvider(StorageProvider):
     def __init__(self):
         import cloudinary
 
+        import cloudinary.uploader
+        import cloudinary.utils
+
         cloud_name, api_key, api_secret = _credentials()
         cloudinary.config(cloud_name=cloud_name, api_key=api_key, api_secret=api_secret, secure=True)
+        cloudinary.uploader._http = cloudinary.utils.get_http_connector(
+            cloudinary.config(), {**cloudinary.CERT_KWARGS, "maxsize": _POOL_SIZE}
+        )
+        # One HTTP client for downloads, reused across requests (keeps connections warm
+        # instead of a new TLS handshake per file); recreated if the event loop changes.
+        self._download_client: httpx.AsyncClient | None = None
+        self._download_loop = None
 
     async def upload(self, key: str, data: bytes, content_type: str) -> None:
+        stream = io.BytesIO(data)
+        stream.name = key.rsplit("/", 1)[-1]
+        await self._upload(stream, len(data), key, content_type)
+
+    async def upload_file(self, key: str, path: str, content_type: str) -> None:
+        """Streams from disk (chunked above _CHUNK_SIZE) — the compressed video is never
+        loaded into memory whole."""
+        import os
+
+        await self._upload(path, os.path.getsize(path), key, content_type)
+
+    async def _upload(self, source, size: int, key: str, content_type: str) -> None:
         import cloudinary.uploader
 
-        def _upload():
-            stream = io.BytesIO(data)
-            stream.name = key.rsplit("/", 1)[-1]
+        if content_type.startswith("video/"):
+            # Stored as a Cloudinary "video" asset, not "raw": the free plan allows 100MB per
+            # video but only 10MB per raw file. Video public_ids carry no extension.
+            options = dict(public_id=_video_public_id(key), resource_type="video", type=_DELIVERY_TYPE, overwrite=True, invalidate=True)
+        else:
             options = dict(public_id=key, resource_type=_RESOURCE_TYPE, type=_DELIVERY_TYPE, overwrite=True, invalidate=True)
-            if len(data) > _CHUNK_SIZE:
-                cloudinary.uploader.upload_large(stream, chunk_size=_CHUNK_SIZE, **options)
+
+        def _run():
+            if size > _CHUNK_SIZE:
+                cloudinary.uploader.upload_large(source, chunk_size=_CHUNK_SIZE, **options)
             else:
-                cloudinary.uploader.upload(stream, **options)
+                cloudinary.uploader.upload(source, **options)
 
         try:
-            await anyio.to_thread.run_sync(_upload)
+            await anyio.to_thread.run_sync(_run)
         except Exception as exc:
             raise AppError("Could not store the file in Cloudinary.", 502, "STORAGE_UPLOAD_FAILED") from exc
 
-    def _private_download_url(self, key: str) -> str:
+    def _private_download_url(self, key: str, *, as_video: bool = False) -> str:
         """A short-lived (60 s), API-signed download link served by Cloudinary's origin, not
         its CDN. Chosen over a signed *delivery* URL (`cloudinary_url(sign_url=True)`) on
         purpose, verified against a live account: delivery URLs never expire and the CDN
@@ -95,15 +139,40 @@ class CloudinaryStorageProvider(StorageProvider):
         next read. Only ever used server-side, right here; never handed to a browser."""
         import cloudinary.utils
 
+        expires_at = int(time.time()) + 60
+        if as_video:
+            return cloudinary.utils.private_download_url(
+                _video_public_id(key), _video_format(key), resource_type="video", type=_DELIVERY_TYPE, expires_at=expires_at
+            )
         return cloudinary.utils.private_download_url(
-            key, None, resource_type=_RESOURCE_TYPE, type=_DELIVERY_TYPE, expires_at=int(time.time()) + 60
+            key, None, resource_type=_RESOURCE_TYPE, type=_DELIVERY_TYPE, expires_at=expires_at
         )
 
     async def download(self, key: str) -> bytes:
-        url = self._private_download_url(key)
+        # A video key is a "video" asset (current) or a "raw" one (stored before videos were
+        # compressed) — try video first, then raw.
+        if _is_video_key(key):
+            try:
+                return await self._fetch(self._private_download_url(key, as_video=True))
+            except AppError as exc:
+                if exc.status_code != 404:
+                    raise
+        return await self._fetch(self._private_download_url(key))
+
+    def _client(self) -> httpx.AsyncClient:
+        import asyncio
+
+        loop = asyncio.get_running_loop()
+        if self._download_client is None or self._download_loop is not loop:
+            self._download_client = httpx.AsyncClient(
+                timeout=60, follow_redirects=True, limits=httpx.Limits(max_keepalive_connections=_POOL_SIZE)
+            )
+            self._download_loop = loop
+        return self._download_client
+
+    async def _fetch(self, url: str) -> bytes:
         try:
-            async with httpx.AsyncClient(timeout=60, follow_redirects=True) as client:
-                response = await client.get(url)
+            response = await self._client().get(url)
         except httpx.HTTPError as exc:
             raise AppError("Could not reach Cloudinary to fetch the file.", 502, "STORAGE_DOWNLOAD_FAILED") from exc
         if response.status_code == 404:
@@ -115,12 +184,13 @@ class CloudinaryStorageProvider(StorageProvider):
     async def delete(self, key: str) -> None:
         import cloudinary.uploader
 
-        await anyio.to_thread.run_sync(
-            lambda: cloudinary.uploader.destroy(key, resource_type=_RESOURCE_TYPE, type=_DELIVERY_TYPE, invalidate=True)
-        )
+        def _destroy():
+            if _is_video_key(key):
+                cloudinary.uploader.destroy(_video_public_id(key), resource_type="video", type=_DELIVERY_TYPE, invalidate=True)
+            # Also the raw form: older videos were stored raw ("not found" is a no-op).
+            cloudinary.uploader.destroy(key, resource_type=_RESOURCE_TYPE, type=_DELIVERY_TYPE, invalidate=True)
+
+        await anyio.to_thread.run_sync(_destroy)
 
     def generate_signed_url(self, key: str, expires_in: int | None = None) -> str:
-        ttl = expires_in or settings.signed_url_ttl_seconds
-        expires_at = int(time.time()) + ttl
-        token = sign_storage_key(key, expires_at)
-        return f"/api/v1/uploads/file/{key}?token={token}"
+        return signed_file_url(key, expires_in)

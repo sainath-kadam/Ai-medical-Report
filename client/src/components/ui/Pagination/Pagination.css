@@ -56,3 +56,11 @@
     font-size: var(--font-size-sm);
   }
 }
+
+@media (pointer: coarse) {
+  .pagination__page,
+  .pagination__nav {
+    min-width: 40px;
+    height: 40px;
+  }
+}

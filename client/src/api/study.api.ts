@@ -9,16 +9,6 @@ export interface StudyListParams {
   modality?: Modality;
 }
 
-export interface StudyPayload {
-  patientId: string;
-  modality: Modality;
-  bodyPart: string;
-  clinicalHistory?: string;
-  studyDate: string;
-  referringPhysician?: string;
-  templateId?: string;
-}
-
 export interface NewPatientForIntake {
   /** Optional — omitted, the server assigns a per-organization `MRN-000123`. */
   mrn?: string;
@@ -63,13 +53,6 @@ export const studyApi = {
     api.get<{ success: boolean; data: Paginated<Study> }>('/studies', { params }).then((r) => r.data.data),
 
   getById: (id: string) => api.get<{ success: boolean; data: Study }>(`/studies/${id}`).then((r) => r.data.data),
-
-  create: (payload: StudyPayload) => api.post<{ success: boolean; data: Study }>('/studies', payload).then((r) => r.data.data),
-
-  update: (id: string, payload: Partial<StudyPayload>) =>
-    api.patch<{ success: boolean; data: Study }>(`/studies/${id}`, payload).then((r) => r.data.data),
-
-  remove: (id: string) => api.delete(`/studies/${id}`),
 
   uploadFile: (studyId: string, file: File, onUploadProgress?: (percent: number) => void) => {
     const form = new FormData();

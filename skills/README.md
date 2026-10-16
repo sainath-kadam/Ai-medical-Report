@@ -21,7 +21,6 @@ check the exact wire shape before changing a route/schema.
 | `backend-patients` | Patient CRUD + a patient's studies |
 | `backend-studies` | Study CRUD + the combined intake flow |
 | `backend-uploads` | File attach + signed-URL download |
-| `backend-intake` | Stateless chat-style intake field extraction |
 | `backend-analysis` | Triggers/tracks the in-request AI-analysis pipeline |
 | `backend-reports` | Report edit/change-request/regenerate/finalize/PDF |
 | `backend-templates` | Report-template branding/sections/preview |

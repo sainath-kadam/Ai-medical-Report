@@ -26,7 +26,9 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
         <div className="sidebar__header">
           <span className="sidebar__brand">
             <img src="/LogoMedicalAI2.jpg" alt="" className="sidebar__brand-mark" />
-            Medo <strong>AI</strong>
+            <span>
+              Radio<strong>lens</strong>
+            </span>
           </span>
           <button className="sidebar__close" onClick={onClose} aria-label="Close navigation menu">
             <FiX size={20} />

@@ -4,19 +4,74 @@
   align-items: center;
   justify-content: center;
   padding: var(--space-4);
-  background: radial-gradient(circle at top, var(--color-primary-light), var(--color-bg) 60%);
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--color-bg);
+}
+
+/* Aurora: two large blurred color fields drifting very slowly behind the card, over a
+   faint "sensor grid" -- the AI-imaging mood, at the cost of two composited layers. */
+.auth-page::before,
+.auth-page::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  width: 70vmax;
+  height: 70vmax;
+  border-radius: 50%;
+  filter: blur(60px);
+  opacity: 0.55;
+  pointer-events: none;
+  will-change: transform;
+}
+.auth-page::before {
+  top: -35vmax;
+  left: -20vmax;
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-primary) 30%, transparent), transparent 65%);
+  animation: auth-aurora-a 22s ease-in-out infinite alternate;
+}
+.auth-page::after {
+  bottom: -38vmax;
+  right: -22vmax;
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-primary) 20%, transparent), transparent 65%);
+  animation: auth-aurora-b 26s ease-in-out infinite alternate;
+}
+@keyframes auth-aurora-a {
+  to {
+    transform: translate(12vmax, 8vmax) scale(1.1);
+  }
+}
+@keyframes auth-aurora-b {
+  to {
+    transform: translate(-10vmax, -6vmax) scale(1.15);
+  }
 }
 
 .auth-card {
   width: 100%;
   max-width: 420px;
-  background: var(--color-surface);
+  position: relative;
+  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+  -webkit-backdrop-filter: blur(18px) saturate(140%);
+  backdrop-filter: blur(18px) saturate(140%);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-lg), 0 0 0 1px color-mix(in srgb, var(--color-surface) 60%, transparent) inset;
   padding: var(--space-6);
   display: flex;
   flex-direction: column;
+  animation: auth-card-in 520ms var(--ease-out) both;
+}
+@keyframes auth-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .auth-card__brand {
@@ -41,7 +96,9 @@
 }
 
 .auth-card__title {
-  font-size: var(--font-size-2xl);
+  font-size: 1.75rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
   color: var(--color-text-primary);
   margin-bottom: var(--space-1);
 }

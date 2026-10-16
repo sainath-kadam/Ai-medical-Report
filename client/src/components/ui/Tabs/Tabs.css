@@ -15,7 +15,7 @@
   padding: var(--space-3) var(--space-2);
   margin-bottom: -1px;
   font-size: var(--font-size-sm);
-  font-weight: 500;
+  font-weight: 600;
   color: var(--color-text-secondary);
   cursor: pointer;
   white-space: nowrap;

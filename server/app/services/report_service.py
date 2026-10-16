@@ -28,7 +28,6 @@ correction creates an amendment" rule.
 
 from __future__ import annotations
 
-import asyncio
 from datetime import datetime, timezone
 from typing import Any
 
@@ -55,7 +54,7 @@ from app.repositories.template_repository import TemplateRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.common import PaginationParams
 from app.schemas.report import ChangeRequestBody, ReportContentEdit
-from app.services.analysis_service import load_study_images
+from app.services.analysis_service import generate_report_content, load_study_images
 from app.services.audit_service import AuditService
 from app.services.study_service import with_signed_urls
 from app.storage import get_storage
@@ -295,15 +294,11 @@ class ReportService:
         high_accuracy = bool(organization.get("highAccuracyMode"))
 
         report_provider = get_report_provider()
-        # Same concurrent summary+report pattern as AnalysisService.run_analysis (see
-        # there for why it's safe to run these two together) — a regenerate is still
-        # "generating a report", so it gets a freshly distilled summary too rather than
-        # reusing whatever the previous version had.
-        clinical_summary, generated = await asyncio.gather(
-            report_provider.summarize_findings(organization.get("name", ""), context, findings, high_accuracy),
-            report_provider.generate(organization.get("name", ""), sections, context, findings, high_accuracy),
+        # Same report-writing step as AnalysisService.run_analysis (1 AI call; 2 in
+        # High-Accuracy Mode) — a regenerate gets a freshly written summary too.
+        generated = await generate_report_content(
+            report_provider, organization.get("name", ""), sections, context, findings, high_accuracy
         )
-        generated.summary = clinical_summary
 
         version = {
             "versionNumber": report["currentVersion"] + 1,
@@ -451,7 +446,6 @@ class ReportService:
                 template=to_public(template),
                 doctor_name=current_user.name,
                 report_id=report["_id"],
-                version_number=report["currentVersion"],
                 logo_bytes=logo_bytes,
             )
             await storage.upload(storage_key, pdf_bytes, "application/pdf")
@@ -487,7 +481,7 @@ class ReportService:
         sections = self._template_sections(template)
 
         report_provider = get_report_provider()
-        classification = await report_provider.classify_change_request(instruction, sections)
+        classification = await report_provider.classify_change_request(instruction)
 
         job = await self._latest_job_for_study(study["_id"], organization_id)
 

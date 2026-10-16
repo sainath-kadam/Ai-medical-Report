@@ -1,4 +1,5 @@
 import { QueryClient } from '@tanstack/react-query';
+import { persistQueryCache, restorePersistedQueryCache } from './queryPersistence';
 
 // One shared cache for the whole app (created in main.tsx's <QueryClientProvider>, not per
 // component) -- this is what lets navigating Patients -> Studies -> back to Patients reuse
@@ -30,3 +31,8 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+// A reload starts from the last cached data instead of an empty cache (see
+// queryPersistence.ts) -- pages paint immediately and refresh in the background.
+restorePersistedQueryCache(queryClient);
+persistQueryCache(queryClient);

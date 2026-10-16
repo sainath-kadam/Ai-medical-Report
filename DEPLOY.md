@@ -1,4 +1,4 @@
-# Deploying Medo AI — frontend on Netlify, backend on Render
+# Deploying Radiolens — frontend on Netlify, backend on Render
 
 The frontend is a static Vite bundle (`client/dist`); the backend is one FastAPI process
 (built from `server/Dockerfile`) plus PostgreSQL. Three files drive the deploy:
@@ -110,6 +110,11 @@ Variable names are exact (they are the `alias=` values in `server/app/core/confi
 | `FIREBASE_STORAGE_BUCKET` | Only with the Firebase fallback |
 | `STORAGE_BUCKET`, `STORAGE_REGION`, `STORAGE_ACCESS_KEY`, `STORAGE_SECRET_KEY`, `STORAGE_ENDPOINT_URL` | Only for `s3` / `s3_compatible` |
 | `MAX_UPLOAD_MB` | Optional, default 1024 (1GB — sized for MRI/ultrasound video) |
+| `VIDEO_MAX_SECONDS` | Optional, default 120 — longest accepted video (`0` = no limit); also enforced in the browser before upload |
+| `VIDEO_COMPRESSED_MAX_MB` | Optional, default 95 — size ceiling for the stored, compressed copy of an uploaded video (fits Cloudinary's free 100MB per-video limit) |
+| `STORAGE_CAPACITY_MB` | Optional, default 25600 — your storage plan's size; the cleanup budget is a percentage of it |
+| `STORAGE_CLEANUP_PERCENT` | Optional, default 50 — once stored files pass this % of capacity, the oldest videos are deleted until back under (photos/DICOM/AI frames never); `0` disables |
+| `VIDEO_RETENTION_DAYS` | Optional, default 0 (off) — also delete videos this many days after upload |
 
 **Sign in with Google — optional (email/password login works without it)**
 

@@ -76,7 +76,8 @@
   flex-direction: column;
   gap: var(--space-4);
   position: sticky;
-  top: calc(var(--topbar-height) + var(--space-4));
+  /* Relative to the scrolling content area, which already starts below the Topbar. */
+  top: var(--space-4);
 }
 
 .study-detail__card-title {
@@ -155,54 +156,8 @@
   margin-top: var(--space-2);
 }
 
-.study-detail__job {
-  margin-top: var(--space-4);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.study-detail__job-steps {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.study-detail__job-step {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-muted);
-}
-
-.study-detail__job-step-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-border-strong);
-  flex-shrink: 0;
-}
-
-.study-detail__job-step--done {
-  color: var(--color-text-secondary);
-}
-.study-detail__job-step--done .study-detail__job-step-dot {
-  background: var(--color-success);
-}
-
-.study-detail__job-step--current {
-  color: var(--color-text-primary);
-  font-weight: 600;
-}
-.study-detail__job-step--current .study-detail__job-step-dot {
-  background: var(--color-primary);
-  box-shadow: 0 0 0 3px var(--color-primary-light);
-}
-
-.study-detail__job-loading {
-  display: flex;
-}
+/* The analysis-progress pipeline (.study-detail__job / __job-step* / __job-loading) is
+   styled once, shared with the other progress panels, in styles/ai-effects.css. */
 
 .study-detail__report-link {
   display: block;
@@ -370,6 +325,30 @@
   margin-bottom: var(--space-2);
 }
 
+.study-detail__series {
+  margin: 0 0 var(--space-2);
+  padding-left: var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+
+.study-detail__frames {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+}
+
+.study-detail__frames img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-border);
+  background: #000;
+}
+
 .study-detail__preview-download {
   display: inline-flex;
   align-items: center;
@@ -417,5 +396,19 @@
   }
   .study-detail__sidebar {
     position: static;
+  }
+}
+
+@media (pointer: coarse) {
+  .study-detail__back {
+    min-height: 40px;
+  }
+}
+
+@media (pointer: coarse) {
+  .study-detail__patient-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 40px;
   }
 }

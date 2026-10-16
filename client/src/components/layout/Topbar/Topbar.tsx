@@ -37,7 +37,7 @@ export default function Topbar({ onMenuClick }: TopbarProps) {
         <NavLink to="/dashboard" className="topbar__brand">
           <img src="/LogoMedicalAI2.jpg" alt="" className="topbar__brand-mark" />
           <span className="topbar__brand-name">
-            Medo <strong>AI</strong>
+            Radio<strong>lens</strong>
           </span>
         </NavLink>
       </div>

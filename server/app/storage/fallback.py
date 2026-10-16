@@ -19,12 +19,10 @@ server-generated id) and the exception type (spec §31).
 
 from __future__ import annotations
 
-import time
 
-from app.core.config import settings
 from app.core.exceptions import AppError
 from app.core.logging import get_logger
-from app.core.security import sign_storage_key
+from app.core.security import signed_file_url
 from app.storage.base import StorageProvider
 
 logger = get_logger(__name__)
@@ -85,6 +83,20 @@ class FallbackStorageProvider(StorageProvider):
         await self.fallback.upload(key, data, content_type)
         self._fallback_keys.add(key)
 
+    async def upload_file(self, key: str, path: str, content_type: str) -> None:
+        if self.primary is not None:
+            try:
+                await self.primary.upload_file(key, path, content_type)
+                self._fallback_keys.discard(key)
+                return
+            except Exception as exc:
+                logger.warning(
+                    "Storage primary %r failed to store key=%s (%s) — falling back to %r",
+                    self.primary_name, key, type(exc).__name__, self.fallback_name,
+                )
+        await self.fallback.upload_file(key, path, content_type)
+        self._fallback_keys.add(key)
+
     async def download(self, key: str) -> bytes:
         primary_exc: Exception | None = None
         if self.primary is not None and key not in self._fallback_keys:
@@ -133,7 +145,4 @@ class FallbackStorageProvider(StorageProvider):
         self._fallback_keys.discard(key)
 
     def generate_signed_url(self, key: str, expires_in: int | None = None) -> str:
-        ttl = expires_in or settings.signed_url_ttl_seconds
-        expires_at = int(time.time()) + ttl
-        token = sign_storage_key(key, expires_at)
-        return f"/api/v1/uploads/file/{key}?token={token}"
+        return signed_file_url(key, expires_in)

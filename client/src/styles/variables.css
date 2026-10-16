@@ -2,53 +2,76 @@
    Design tokens — the single source of truth for color, spacing, type, and
    elevation. Every component CSS file below reads from these variables only;
    no component should hard-code a hex color or pixel radius directly.
+
+   Color system: ONE brand color (a clinical blue) on cool slate neutrals.
+   Everything interactive, selected or "AI is working" uses that blue and its
+   tints; the only other hues are the semantic status colors (success /
+   warning / danger), and those appear only where a status is being reported.
+   Do not introduce a new hue for decoration -- reach for a tint of the brand
+   color (color-mix with --color-primary) instead.
    ========================================================================== */
 
 :root {
   /* ---- Brand ---- */
-  --color-primary: #0e7c86;
-  --color-primary-dark: #0b646c;
-  --color-primary-light: #e6f4f5;
-  --color-accent: #2f6fed;
-  --color-accent-light: #eaf1ff;
+  --color-primary: #2563eb;
+  --color-primary-dark: #1d4ed8;
+  --color-primary-light: #eef4ff;
+  /* Accent is deliberately the same family as primary (links, secondary emphasis) --
+     kept as its own token only so existing components keep compiling. */
+  --color-accent: #1d4ed8;
+  --color-accent-light: #eef4ff;
 
-  /* ---- Surfaces ---- */
-  --color-bg: #f5f7fa;
+  /* ---- AI motion tints ----
+     The stops used by loaders, the analysis pipeline and focus glows. All three are
+     shades of the brand blue, so motion reads as "the product is working", never as
+     a separate rainbow palette. */
+  --color-ai-1: #2563eb;
+  --color-ai-2: #1d4ed8;
+  --color-ai-3: #60a5fa;
+  --gradient-ai: linear-gradient(120deg, var(--color-ai-2), var(--color-ai-1) 55%, var(--color-ai-3));
+  --gradient-primary: linear-gradient(var(--color-primary), var(--color-primary));
+  --glow-ai: 0 0 0 1px color-mix(in srgb, var(--color-primary) 14%, transparent),
+    0 8px 24px -10px color-mix(in srgb, var(--color-primary) 35%, transparent);
+
+  /* ---- Surfaces (cool slate neutrals) ---- */
+  --color-bg: #f6f8fb;
   --color-surface: #ffffff;
-  --color-surface-alt: #f0f3f7;
-  --color-border: #e2e8f0;
-  --color-border-strong: #cbd5e1;
+  --color-surface-alt: #f1f4f9;
+  --color-border: #e3e8ef;
+  --color-border-strong: #cbd3df;
 
   /* ---- Text ---- */
-  --color-text-primary: #101828;
-  --color-text-secondary: #475467;
-  --color-text-muted: #5b6b80;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #5f6b7d;
   --color-text-on-primary: #ffffff;
 
-  /* ---- Status ---- */
-  --color-success: #16a34a;
-  --color-success-bg: #e9f9ef;
-  --color-warning: #d97706;
-  --color-warning-bg: #fff7e6;
+  /* ---- Status (semantic only) ----
+     "info" shares the brand blue: AI-generated / in-flight states are the product's
+     own activity, not a separate notice color. */
+  --color-success: #15803d;
+  --color-success-bg: #ecfdf3;
+  --color-warning: #b45309;
+  --color-warning-bg: #fff7ed;
   --color-danger: #dc2626;
-  --color-danger-bg: #feecec;
-  --color-info: #2f6fed;
-  --color-info-bg: #eaf1ff;
+  --color-danger-bg: #fef2f2;
+  --color-info: #2563eb;
+  --color-info-bg: #eef4ff;
 
   /* ---- Elevation ---- */
-  --shadow-sm: 0 1px 2px rgba(16, 24, 40, 0.06);
-  --shadow-md: 0 4px 10px rgba(16, 24, 40, 0.08);
-  --shadow-lg: 0 12px 28px rgba(16, 24, 40, 0.14);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 1px 3px rgba(15, 23, 42, 0.06), 0 6px 16px -6px rgba(15, 23, 42, 0.12);
+  --shadow-lg: 0 4px 8px rgba(15, 23, 42, 0.04), 0 20px 40px -12px rgba(15, 23, 42, 0.2);
 
   /* ---- Overlay ---- */
   /* Backdrop scrim behind Modal/Sidebar drawer -- deliberately the same fixed dark
      tint in both themes (a dimming scrim, not a themed surface). */
-  --color-overlay: rgba(15, 23, 32, 0.5);
+  --color-overlay: rgba(15, 23, 42, 0.5);
 
   /* ---- Radius ---- */
-  --radius-sm: 6px;
+  --radius-sm: 8px;
   --radius-md: 10px;
-  --radius-lg: 16px;
+  --radius-lg: 14px;
   --radius-pill: 999px;
 
   /* ---- Spacing scale ---- */
@@ -61,7 +84,8 @@
   --space-7: 48px;
 
   /* ---- Typography ---- */
-  --font-ui: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   --font-document: Georgia, 'Times New Roman', serif;
 
   /* Type scale -- introduced to replace ~30 near-duplicate one-off rem values (0.72
@@ -78,8 +102,11 @@
 
   /* ---- Layout ---- */
   --topbar-height: 64px;
-  --sidebar-width: 260px;
+  --sidebar-width: 280px;
   --content-max-width: 1280px;
+
+  /* ---- Motion ---- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --transition-base: 180ms ease;
 }
 
@@ -87,33 +114,37 @@
    Radiology reading rooms are frequently kept dim, so this is a real feature,
    not decoration: it keeps report text legible without a glaring white panel. */
 [data-theme='dark'] {
-  --color-primary: #2dd4bf;
-  --color-primary-dark: #14b8a6;
-  --color-primary-light: #113b3d;
-  --color-accent: #6d9bff;
-  --color-accent-light: #172440;
+  --color-primary: #60a5fa;
+  --color-primary-dark: #3b82f6;
+  --color-primary-light: #13233f;
+  --color-accent: #60a5fa;
+  --color-accent-light: #13233f;
 
-  --color-bg: #0f1720;
-  --color-surface: #17212b;
-  --color-surface-alt: #1d2733;
-  --color-border: #2a3644;
-  --color-border-strong: #3a4756;
+  --color-ai-1: #60a5fa;
+  --color-ai-2: #3b82f6;
+  --color-ai-3: #93c5fd;
 
-  --color-text-primary: #f1f5f9;
-  --color-text-secondary: #b7c2cf;
-  --color-text-muted: #7c8896;
-  --color-text-on-primary: #06231f;
+  --color-bg: #0b1120;
+  --color-surface: #111a2b;
+  --color-surface-alt: #172236;
+  --color-border: #223049;
+  --color-border-strong: #31415d;
 
-  --color-success: #34d399;
-  --color-success-bg: #0f2e22;
+  --color-text-primary: #e8edf5;
+  --color-text-secondary: #b4bfd0;
+  --color-text-muted: #8a97ac;
+  --color-text-on-primary: #08111f;
+
+  --color-success: #4ade80;
+  --color-success-bg: #0d2a1c;
   --color-warning: #fbbf24;
-  --color-warning-bg: #3a2a0c;
+  --color-warning-bg: #2e220b;
   --color-danger: #f87171;
-  --color-danger-bg: #3a1414;
-  --color-info: #6d9bff;
-  --color-info-bg: #14213f;
+  --color-danger-bg: #331417;
+  --color-info: #60a5fa;
+  --color-info-bg: #13233f;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 16px 32px rgba(0, 0, 0, 0.55);
+  --shadow-md: 0 1px 3px rgba(0, 0, 0, 0.3), 0 8px 20px -6px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 4px 8px rgba(0, 0, 0, 0.3), 0 24px 48px -12px rgba(0, 0, 0, 0.6);
 }
