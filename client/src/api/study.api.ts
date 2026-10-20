@@ -13,7 +13,7 @@ export interface NewPatientForIntake {
   /** Optional — omitted, the server assigns a per-organization `MRN-000123`. */
   mrn?: string;
   name: string;
-  dateOfBirth: string;
+  age: number;
   sex: Sex;
   contactPhone?: string;
   contactEmail?: string;
@@ -79,7 +79,7 @@ export const studyApi = {
       // Optional: omitted -> the server assigns a per-organization MRN.
       if (payload.newPatient.mrn) form.append('patientMrn', payload.newPatient.mrn);
       form.append('patientName', payload.newPatient.name);
-      form.append('patientDateOfBirth', payload.newPatient.dateOfBirth);
+      form.append('patientAge', String(payload.newPatient.age));
       form.append('patientSex', payload.newPatient.sex);
       if (payload.newPatient.contactPhone) form.append('patientContactPhone', payload.newPatient.contactPhone);
       if (payload.newPatient.contactEmail) form.append('patientContactEmail', payload.newPatient.contactEmail);

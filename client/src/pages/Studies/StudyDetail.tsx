@@ -19,6 +19,7 @@ import {
   TERMINAL_JOB_STATUSES,
 } from '../../utils/studyMeta';
 import { formatDate, formatDateTime, formatRelative } from '../../utils/formatDate';
+import { formatPatientAge, patientAge } from '../../utils/patientAge';
 import { useAuth } from '../../hooks/useAuth';
 import { useAnalysisJobPolling } from '../../hooks/useAnalysisJobPolling';
 import Card from '../../components/common/Card/Card';
@@ -354,10 +355,10 @@ export default function StudyDetail() {
                       <dt>MRN</dt>
                       <dd>{patient.mrn}</dd>
                     </div>
-                    {patient.dateOfBirth && (
+                    {patientAge(patient) !== null && (
                       <div>
-                        <dt>Date of birth</dt>
-                        <dd>{formatDate(patient.dateOfBirth)}</dd>
+                        <dt>Age</dt>
+                        <dd>{formatPatientAge(patient)}</dd>
                       </div>
                     )}
                     {patient.sex && (
@@ -431,6 +432,9 @@ export default function StudyDetail() {
                     >
                       {file.mimeType?.startsWith('image/') && file.signedUrl ? (
                         <img src={file.signedUrl} alt={file.fileName} />
+                      ) : file.frameUrls?.[0] ? (
+                        // Video / ZIP / PDF: the first image the AI read stands in as the thumbnail.
+                        <img src={file.frameUrls[0]} alt={file.fileName} />
                       ) : (
                         <FiFile size={22} />
                       )}
@@ -471,9 +475,9 @@ export default function StudyDetail() {
                 </p>
               ) : selectedFile.processingStatus === 'slices_only' ? (
                 <p className="study-detail__hint">
-                  MRI/CT ZIP — {selectedFile.extraction?.totalImages ?? 0} images in{' '}
-                  {selectedFile.extraction?.series.length ?? 0} series. The ZIP itself isn&apos;t stored; the slices the
-                  AI read are kept below.
+                  {selectedFile.extraction?.source === 'pdf'
+                    ? `PDF — ${selectedFile.extraction.totalImages} page${selectedFile.extraction.totalImages === 1 ? '' : 's'}. The PDF itself isn't stored; the pages the AI read are kept below.`
+                    : `MRI/CT ZIP — ${selectedFile.extraction?.totalImages ?? 0} images in ${selectedFile.extraction?.series.length ?? 0} series. The ZIP itself isn't stored; the slices the AI read are kept below.`}
                 </p>
               ) : selectedFile.processingStatus === 'compressing' ? (
                 <p className="study-detail__hint">
@@ -503,11 +507,13 @@ export default function StudyDetail() {
               {selectedFile?.frameUrls && selectedFile.frameUrls.length > 0 && (
                 <>
                   <p className="study-detail__hint">
-                    {selectedFile.extraction
-                      ? `${selectedFile.frameUrls.length} slices the AI read, spread across the series:`
-                      : `${selectedFile.frameUrls.length} frames the AI read, cut evenly from the original video:`}
+                    {selectedFile.extraction?.source === 'pdf'
+                      ? `${selectedFile.frameUrls.length} page${selectedFile.frameUrls.length === 1 ? '' : 's'} the AI read:`
+                      : selectedFile.extraction
+                        ? `${selectedFile.frameUrls.length} slices the AI read, spread across the series:`
+                        : `${selectedFile.frameUrls.length} frames the AI read, cut evenly from the original video:`}
                   </p>
-                  {selectedFile.extraction && (
+                  {selectedFile.extraction && selectedFile.extraction.source !== 'pdf' && (
                     <ul className="study-detail__series">
                       {selectedFile.extraction.series.map((series) => (
                         <li key={series.label}>
@@ -600,15 +606,20 @@ export default function StudyDetail() {
               {canRunAnalysis && (
                 <Card>
                   <h3 className="study-detail__card-title">AI analysis</h3>
-                  <Button
-                    icon={<FiCpu size={16} />}
-                    onClick={handleRunAnalysis}
-                    isLoading={isRunningAnalysis && !job}
-                    disabled={isBusy || study.files.length === 0}
-                    fullWidth
-                  >
-                    Run AI analysis
-                  </Button>
+                  {/* Hidden while an analysis is in progress -- the steps below are the
+                      only thing to show until it finishes (or fails), and a second click
+                      would just queue a duplicate run. */}
+                  {!(job && !jobIsTerminal) && (
+                    <Button
+                      icon={<FiCpu size={16} />}
+                      onClick={handleRunAnalysis}
+                      isLoading={isRunningAnalysis && !job}
+                      disabled={isBusy || study.files.length === 0}
+                      fullWidth
+                    >
+                      Run AI analysis
+                    </Button>
+                  )}
 
                   {job && !jobIsTerminal && (
                     <div className="study-detail__job">

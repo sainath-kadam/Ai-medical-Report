@@ -27,7 +27,6 @@ longer reflects it.
 from __future__ import annotations
 
 import io
-from datetime import date
 from functools import partial
 from typing import Any
 from xml.sax.saxutils import escape as _xml_escape
@@ -39,6 +38,8 @@ from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
 from reportlab.platypus import HRFlowable, Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+
+from app.utils.patient_age import patient_age
 
 _MODALITY_LABELS = {"x_ray": "X-Ray", "ct": "CT", "mri": "MRI", "ultrasound": "Ultrasound", "other": "Other"}
 
@@ -58,17 +59,6 @@ def _safe(text: Any) -> str:
     if not text:
         return ""
     return _xml_escape(str(text)).replace("\n", "<br/>")
-
-
-def _age_from_dob(dob: str | None) -> int | None:
-    if not dob:
-        return None
-    try:
-        born = date.fromisoformat(str(dob)[:10])
-    except ValueError:
-        return None
-    today = date.today()
-    return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
 
 
 def _logo_flowable(data: bytes, max_width: float = 42 * mm, max_height: float = 16 * mm) -> Image | None:
@@ -171,14 +161,14 @@ def build_report_pdf(
     elements.append(Spacer(1, 12))
 
     # ------------------------------------------------------------------
-    # Patient / study identification block -- plain label/value pairs, the way a real
-    # RIS-generated report identifies the patient and study before any narrative content.
+    # Patient / study identification block -- plain label/value pairs in the layout of a real
+    # hospital radiology report (ID/Name, Age/Sex, Referring Physician/Modality, Date/Study).
     # ------------------------------------------------------------------
-    age = _age_from_dob(patient.get("dateOfBirth"))
+    age = patient_age(patient)
     sex = patient.get("sex")
     sex_label = sex.capitalize() if sex and sex != "unspecified" else "—"
-    age_sex = f"{age} / {sex_label}" if age is not None else sex_label
-    accession = f"ACC-{report_id[:10].upper()}"
+    modality_label = _MODALITY_LABELS.get(study.get("modality"), (study.get("modality") or "").upper())
+    study_label = f"{modality_label} {study.get('bodyPart', '')}".strip().upper()
 
     def _id_row(label_a: str, value_a: str, label_b: str, value_b: str) -> list:
         return [
@@ -191,8 +181,9 @@ def build_report_pdf(
     id_table = Table(
         [
             _id_row("Patient ID", patient.get("mrn", "—"), "Patient Name", patient.get("name", "Unknown")),
-            _id_row("Age / Sex", age_sex, "Referring Physician", study.get("referringPhysician") or "—"),
-            _id_row("Study Date", study.get("studyDate", "—"), "Accession No.", accession),
+            _id_row("Age", f"{age} Years" if age is not None else "—", "Sex", sex_label),
+            _id_row("Referring Physician", study.get("referringPhysician") or "—", "Modality", modality_label),
+            _id_row("Study Date", study.get("studyDate", "—"), "Study", study_label),
         ],
         colWidths=[42 * mm, (doc.width - 84 * mm) / 2, 42 * mm, (doc.width - 84 * mm) / 2],
     )
@@ -219,8 +210,7 @@ def build_report_pdf(
     # Centered "which department / which exact study" block -- the way a printed
     # hospital/RIS report announces the test before any narrative content, rather than a
     # small left-aligned "EXAMINATION" label.
-    modality_label = _MODALITY_LABELS.get(study.get("modality"), study.get("modality", "").upper())
-    exam_title = _safe(f"{modality_label} {study.get('bodyPart', '')}".strip().upper())
+    exam_title = _safe(study_label)
     elements.append(Paragraph(_DEPARTMENT_LABEL, department_style))
     elements.append(Paragraph(exam_title, exam_title_style))
     elements.append(Spacer(1, 4))

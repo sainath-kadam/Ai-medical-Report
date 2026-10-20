@@ -81,3 +81,54 @@ async def test_intake_requires_patient_id_or_new_patient_fields(client, signup_a
     )
     assert response.status_code == 400
     assert response.json()["error"]["code"] == "PATIENT_INFO_REQUIRED"
+
+
+async def test_new_patient_is_created_with_only_an_age(client, signup_and_login):
+    """The app sends `patientAge` (no date of birth); the age is stored as entered and is
+    what the report PDF and AI context use."""
+    await signup_and_login(email="intake-age@example.com", organization_name="Intake Age Clinic")
+
+    response = await client.post(
+        "/studies/intake",
+        data={
+            "modality": "ct",
+            "bodyPart": "Brain",
+            "studyDate": "2026-10-20",
+            "patientName": "Age Only",
+            "patientAge": "58",
+            "patientSex": "male",
+            "runAnalysis": "false",
+        },
+        files={"file": ("brain.png", _TINY_PNG, "image/png")},
+    )
+
+    assert response.status_code == 201, response.text
+    patient_id = response.json()["data"]["study"]["patientId"]
+    patient = (await client.get(f"/patients/{patient_id}")).json()["data"]
+    assert patient["age"] == 58
+    assert patient["dateOfBirth"] == ""
+
+
+async def test_patient_age_is_editable_and_validated(client, signup_and_login):
+    await signup_and_login(email="patient-age@example.com", organization_name="Patient Age Clinic")
+
+    created = await client.post("/patients", json={"name": "Edit Age", "age": 40, "sex": "female"})
+    assert created.status_code == 201, created.text
+    patient_id = created.json()["data"]["id"]
+
+    updated = await client.patch(f"/patients/{patient_id}", json={"age": 41})
+    assert updated.json()["data"]["age"] == 41
+
+    assert (await client.post("/patients", json={"name": "No Age", "sex": "male"})).status_code == 422
+    assert (await client.post("/patients", json={"name": "Bad Age", "age": -1, "sex": "male"})).status_code == 422
+
+
+def test_patient_age_prefers_the_entered_age_over_an_old_date_of_birth():
+    from datetime import date
+
+    from app.utils.patient_age import patient_age
+
+    assert patient_age({"age": 58, "dateOfBirth": ""}) == 58
+    assert patient_age({"dateOfBirth": f"{date.today().year - 30}-01-01"}) in (29, 30)
+    assert patient_age({"dateOfBirth": ""}) is None
+    assert patient_age(None) is None

@@ -13,7 +13,7 @@ export interface PatientPayload {
   /** Optional — omitted, the server assigns a per-organization `MRN-000123`. */
   mrn?: string;
   name: string;
-  dateOfBirth?: string;
+  age?: number;
   sex?: Patient['sex'];
   contactPhone?: string;
   contactEmail?: string;

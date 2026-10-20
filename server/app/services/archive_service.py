@@ -1,5 +1,7 @@
-"""ZIP uploads — an MRI/CT export of DICOM slices (or a folder of images). Called by
-`UploadService` for any upload recognised as a ZIP.
+"""ZIP and PDF uploads — an MRI/CT export of DICOM slices (or a folder of images), or a
+PDF containing scan images. Called by `UploadService` for any upload recognised as either
+(`kind`). Both work the same way; only the reader differs (`dicom_archive.read_archive` /
+`pdf_pages.read_pdf`, both returning `ArchiveResult`).
 
 1. The ZIP is copied to a local temp file in chunks (never held in memory whole),
    enforcing MAX_UPLOAD_MB as it goes (same helper as video uploads).
@@ -31,6 +33,9 @@ from app.services.analysis_service import MAX_ANALYSIS_IMAGES
 from app.services.video_service import save_upload_to_temp
 from app.storage import get_storage
 from app.utils.dicom_archive import ArchiveError, read_archive
+from app.utils.pdf_pages import read_pdf
+
+_READERS = {"zip": (read_archive, "application/zip"), "pdf": (read_pdf, "application/pdf")}
 from app.utils.ids import new_id
 
 
@@ -41,13 +46,15 @@ async def store_archive(
     organization_id: str,
     uploaded_by: str,
     db,
+    kind: str = "zip",
 ) -> tuple[dict[str, Any] | None, dict[str, Any], dict[str, bytes]]:
     """Returns `(updated_study, file_record, slices_by_key)` — the slice bytes so the
     caller can hand them straight to analysis without downloading them back."""
+    reader, mime_type = _READERS[kind]
     path, size = await save_upload_to_temp(file, settings.max_upload_mb * 1024 * 1024)
     try:
         try:
-            result = await anyio.to_thread.run_sync(read_archive, path, MAX_ANALYSIS_IMAGES)
+            result = await anyio.to_thread.run_sync(reader, path, MAX_ANALYSIS_IMAGES)
         except ArchiveError as exc:
             raise AppError.bad_request(exc.message, exc.code) from exc
     finally:
@@ -63,16 +70,17 @@ async def store_archive(
 
     file_record = {
         "id": file_id,
-        "fileName": file.filename or f"{file_id}.zip",
+        "fileName": file.filename or f"{file_id}.{kind}",
         # Never written to storage — the row has no download link (processingStatus).
-        "storageKey": f"archive/{file_id}.zip",
-        "mimeType": "application/zip",
+        "storageKey": f"archive/{file_id}.{kind}",
+        "mimeType": mime_type,
         "sizeBytes": size,
         "uploadedBy": uploaded_by,
         "uploadedAt": datetime.now(timezone.utc).isoformat(),
         "frameKeys": keys,
         "processingStatus": "slices_only",
         "extraction": {
+            "source": kind,
             "labels": [item.label for item in result.slices],
             "totalImages": result.total_images,
             "series": result.series,

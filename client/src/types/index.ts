@@ -90,6 +90,9 @@ export interface Patient {
   id: string;
   mrn: string;
   name: string;
+  /** Age in years as entered when the patient was added. */
+  age?: number | null;
+  /** Only on patients created before age replaced date of birth. */
   dateOfBirth?: string;
   sex?: Sex;
   contactPhone?: string;
@@ -118,6 +121,8 @@ export interface StudyFile {
   frameUrls?: string[];
   // ZIPs only: what was picked -- one label per frameUrls entry, plus per-series counts.
   extraction?: {
+    // What the images were picked from: an MRI/CT ZIP (slices) or a PDF (pages).
+    source?: 'zip' | 'pdf';
     labels: string[];
     totalImages: number;
     series: { label: string; slices: number; picked: number }[];

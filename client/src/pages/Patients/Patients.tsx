@@ -17,7 +17,7 @@ import { TextField } from '../../components/common/TextField/TextField';
 import PatientForm, { PatientFormValues, patientFormToPayload } from '../../components/patients/PatientForm/PatientForm';
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../components/ui/Toast/ToastProvider';
-import { formatDate } from '../../utils/formatDate';
+import { formatPatientAge } from '../../utils/patientAge';
 import './Patients.css';
 
 const PAGE_SIZE = 20;
@@ -124,7 +124,7 @@ export default function Patients() {
   const columns: TableColumn<Patient>[] = [
     { key: 'mrn', header: 'MRN', render: (p) => <span className="patients-page__mrn">{p.mrn}</span> },
     { key: 'name', header: 'Name' },
-    { key: 'dateOfBirth', header: 'DOB', render: (p) => (p.dateOfBirth ? formatDate(p.dateOfBirth) : '—') },
+    { key: 'age', header: 'Age', render: (p) => formatPatientAge(p) },
     { key: 'sex', header: 'Sex', render: (p) => SEX_LABEL[p.sex ?? 'unspecified'] },
     {
       key: 'actions',

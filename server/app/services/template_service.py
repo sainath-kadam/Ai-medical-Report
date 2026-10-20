@@ -62,7 +62,7 @@ def _sample_report_data(sections: list[dict[str, Any]]) -> tuple[dict[str, Any],
     disabled ones); build_report_pdf's own enabled-sections filter (and its separate,
     fixed impression/recommendations blocks) already do the right thing with that, so this
     doesn't need to duplicate that filtering logic here."""
-    patient = {"name": "Jordan Alvarez", "mrn": "MRN-000123", "dateOfBirth": "1985-04-12", "sex": "male"}
+    patient = {"name": "Jordan Alvarez", "mrn": "MRN-000123", "age": 41, "sex": "male"}
     study = {"modality": "CT", "bodyPart": "Chest", "studyDate": datetime.now(timezone.utc).date().isoformat()}
     content = {
         "summary": "Sample AI-generated summary illustrating how a finished report reads in this template.",

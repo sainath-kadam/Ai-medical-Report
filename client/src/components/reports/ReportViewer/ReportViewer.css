@@ -42,9 +42,10 @@
 /* -------------------------------------------------------------------- */
 .report-viewer__toolbar {
   position: sticky;
-  /* Flush under the Topbar (top of the scrolling content area): a gap between the two
-     let scrolled text show through it. */
-  top: 0;
+  /* Flush against the Topbar's bottom border. Sticky offsets are measured from the
+     scrolling content area's padding edge, so cancel that padding -- with plain `top: 0`
+     the bar pinned 16-32px below the header and report text scrolled through the gap. */
+  top: calc(-1 * var(--content-pad-top, 0px));
   z-index: 15;
   display: flex;
   align-items: center;
@@ -61,8 +62,10 @@
     var(--color-surface) 45%
   );
   border: 1px solid var(--color-border);
-  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-  box-shadow: var(--shadow-sm);
+  /* Small bottom radius: large rounded corners left visible notches where scrolled report
+     text showed beside the bar. */
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  box-shadow: var(--shadow-md);
 }
 
 /* Primary action inside the toolbar (Edit report) -- a solid brand-color CTA, scoped to this
@@ -334,7 +337,7 @@
   min-width: 0;
   /* Grid column-gap is the spacing; drop the browser's default 40px <dd> indent. */
   margin: 0;
-  /* Long unbroken values (accession numbers, MRNs) wrap inside the box instead of
+  /* Long unbroken values (MRNs, long study names) wrap inside the box instead of
      running past its border. */
   overflow-wrap: anywhere;
 }

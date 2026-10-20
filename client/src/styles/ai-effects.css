@@ -97,6 +97,15 @@
 .study-detail__job,
 .report-workspace__job {
   margin-top: var(--space-4);
+}
+/* When the run button above is hidden (analysis in progress), the panel sits straight
+   under the card title, which already has its own bottom margin. */
+.study-detail__card-title + .study-detail__job,
+.report-workspace__card-title + .report-workspace__job {
+  margin-top: 0;
+}
+.study-detail__job,
+.report-workspace__job {
   padding: var(--space-4);
   display: flex;
   flex-direction: column;

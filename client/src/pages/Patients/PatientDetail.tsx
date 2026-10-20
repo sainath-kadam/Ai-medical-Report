@@ -18,6 +18,7 @@ import PatientForm, { PatientFormValues, patientFormToPayload } from '../../comp
 import { useAuth } from '../../hooks/useAuth';
 import { useToast } from '../../components/ui/Toast/ToastProvider';
 import { formatDate } from '../../utils/formatDate';
+import { formatPatientAge } from '../../utils/patientAge';
 import { MODALITY_LABELS, SEX_LABELS, STUDY_STATUS_META } from '../../utils/studyMeta';
 import './PatientDetail.css';
 
@@ -158,8 +159,8 @@ export default function PatientDetail() {
         <div className="patient-detail__row">
           <FiCalendar size={16} />
           <div>
-            <span className="patient-detail__label">Date of birth</span>
-            <span>{patient.dateOfBirth ? formatDate(patient.dateOfBirth) : '—'}</span>
+            <span className="patient-detail__label">Age</span>
+            <span>{formatPatientAge(patient)}</span>
           </div>
         </div>
         <div className="patient-detail__row">

@@ -4,12 +4,13 @@ import { TextField } from '../../common/TextField/TextField';
 import Select from '../../ui/Select/Select';
 import { Patient, Sex } from '../../../types';
 import { PatientPayload } from '../../../api/patient.api';
+import { patientAge } from '../../../utils/patientAge';
 import './PatientForm.css';
 
 export interface PatientFormValues {
   mrn: string;
   name: string;
-  dateOfBirth: string;
+  age: string;
   sex: Sex;
   contactPhone: string;
   contactEmail: string;
@@ -29,7 +30,7 @@ const SEX_OPTIONS = [
 ];
 
 function defaultValues(): PatientFormValues {
-  return { mrn: '', name: '', dateOfBirth: '', sex: 'unspecified', contactPhone: '', contactEmail: '' };
+  return { mrn: '', name: '', age: '', sex: 'unspecified', contactPhone: '', contactEmail: '' };
 }
 
 /** Converts form state (all-string, HTML-input-friendly) into the payload shape
@@ -39,7 +40,7 @@ export function patientFormToPayload(values: PatientFormValues): PatientPayload 
   return {
     mrn: values.mrn.trim() || undefined,
     name: values.name.trim(),
-    dateOfBirth: values.dateOfBirth || undefined,
+    age: values.age.trim() ? Number(values.age) : undefined,
     sex: values.sex,
     contactPhone: values.contactPhone.trim() || undefined,
     contactEmail: values.contactEmail.trim() || undefined,
@@ -55,7 +56,7 @@ export default function PatientForm({ initial, onSubmit, submitLabel = 'Save pat
       setValues({
         mrn: initial.mrn,
         name: initial.name,
-        dateOfBirth: initial.dateOfBirth ? initial.dateOfBirth.slice(0, 10) : '',
+        age: patientAge(initial)?.toString() ?? '',
         sex: initial.sex ?? 'unspecified',
         contactPhone: initial.contactPhone ?? '',
         contactEmail: initial.contactEmail ?? '',
@@ -94,11 +95,12 @@ export default function PatientForm({ initial, onSubmit, submitLabel = 'Save pat
 
       <div className="patient-form__grid">
         <TextField
-          label="Date of birth"
-          type="date"
-          value={values.dateOfBirth}
-          onChange={(e) => setValues((p) => ({ ...p, dateOfBirth: e.target.value }))}
-          max={new Date().toISOString().slice(0, 10)}
+          label="Age (years)"
+          type="number"
+          min={0}
+          max={150}
+          value={values.age}
+          onChange={(e) => setValues((p) => ({ ...p, age: e.target.value }))}
         />
         <Select
           label="Sex"

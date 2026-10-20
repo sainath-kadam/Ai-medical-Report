@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from app.schemas.common import CamelModel
 
@@ -26,10 +26,18 @@ class PatientCreateRequest(CamelModel):
     # (organizationId, mrn) uniqueness that patient matching relies on is preserved.
     mrn: str | None = Field(None, min_length=1, max_length=64)
     name: str = Field(..., min_length=1, max_length=200)
-    date_of_birth: date
+    # The app sends only `age`; `dateOfBirth` is still accepted from older API callers.
+    age: int | None = Field(None, ge=0, le=150)
+    date_of_birth: date | None = None
     sex: Sex
     contact_phone: str | None = Field(None, max_length=40)
     contact_email: str | None = Field(None, max_length=200)
+
+    @model_validator(mode="after")
+    def _age_or_date_of_birth(self) -> "PatientCreateRequest":
+        if self.age is None and self.date_of_birth is None:
+            raise ValueError("age is required")
+        return self
 
 
 class PatientUpdateRequest(CamelModel):
@@ -38,6 +46,7 @@ class PatientUpdateRequest(CamelModel):
 
     mrn: str | None = Field(None, min_length=1, max_length=64)
     name: str | None = Field(None, min_length=1, max_length=200)
+    age: int | None = Field(None, ge=0, le=150)
     date_of_birth: date | None = None
     sex: Sex | None = None
     contact_phone: str | None = Field(None, max_length=40)

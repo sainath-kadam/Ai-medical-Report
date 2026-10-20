@@ -29,7 +29,7 @@ function fillAndSubmit(file: File) {
   const { container } = render(<NewStudyForm onComplete={vi.fn()} />);
   fireEvent.click(screen.getByRole('button', { name: /new patient/i }));
   fireEvent.change(screen.getByLabelText('Full name'), { target: { value: 'Mri Video' } });
-  fireEvent.change(screen.getByLabelText('Date of birth'), { target: { value: '1975-03-03' } });
+  fireEvent.change(screen.getByLabelText('Age (years)'), { target: { value: '51' } });
   fireEvent.change(screen.getByLabelText('Body part'), { target: { value: 'Brain' } });
   fireEvent.change(container.querySelector('input[type="file"]')!, { target: { files: [file] } });
   fireEvent.submit(container.querySelector('form')!);

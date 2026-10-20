@@ -7,6 +7,7 @@ import { useAuth } from '../../../hooks/useAuth';
 import { REPORT_STATUS_META } from '../../../utils/statusMeta';
 import { MODALITY_LABELS } from '../../../utils/studyMeta';
 import { formatDate } from '../../../utils/formatDate';
+import { formatPatientAge } from '../../../utils/patientAge';
 import './ReportViewer.css';
 
 interface ReportViewerProps {
@@ -23,18 +24,6 @@ interface ReportViewerProps {
 
 const ZOOM_STEPS = [70, 85, 100, 115, 130, 150, 175, 200];
 const DEFAULT_ZOOM_INDEX = 2; // 100%
-
-function calculateAge(dob?: string): number | null {
-  if (!dob) return null;
-  const born = new Date(dob);
-  if (Number.isNaN(born.getTime())) return null;
-  const today = new Date();
-  let age = today.getFullYear() - born.getFullYear();
-  const beforeBirthday =
-    today.getMonth() < born.getMonth() || (today.getMonth() === born.getMonth() && today.getDate() < born.getDate());
-  if (beforeBirthday) age -= 1;
-  return age;
-}
 
 /** An auto-growing, borderless text field styled to look identical to the static <p> it
  *  replaces in edit mode — editing a report should feel like writing directly on the
@@ -113,10 +102,7 @@ export default function ReportViewer({ report, selectedVersion, onSelectVersion,
 
   const doctorInfo = template?.doctorInfo ?? { showDoctorName: true, showSignatureLine: true, showRegistrationNo: false };
   const doctorName = user?.name || '—';
-  const age = calculateAge(patient?.dateOfBirth);
   const sexLabel = patient?.sex && patient.sex !== 'unspecified' ? patient.sex[0].toUpperCase() + patient.sex.slice(1) : '—';
-  const ageSex = age !== null ? `${age} / ${sexLabel}` : sexLabel;
-  const accession = `ACC-${report.id.slice(0, 10).toUpperCase()}`;
   const modalityLabel = study ? MODALITY_LABELS[study.modality] : '';
   const examTitle = study ? `${modalityLabel} ${study.bodyPart}`.trim().toUpperCase() : '';
 
@@ -250,25 +236,29 @@ export default function ReportViewer({ report, selectedVersion, onSelectVersion,
 
           {study && (
             // Flat dt/dd sequence (no wrapping <div> per pair) so the CSS grid in
-            // ReportViewer.css can size the label columns once, shared across all three
-            // rows -- see that file's comment on .report-viewer__idblock for why a
+            // ReportViewer.css can size the label columns once, shared across all
+            // rows (four, in the hospital-report layout) -- see that file's comment on .report-viewer__idblock for why a
             // per-row flex layout (the previous markup) let a long label like "Referring
             // Physician :" push its value further right than a short one like "Patient
             // Name :", misaligning every row even though the printed PDF (a real table
             // with fixed column widths, server/app/services/pdf_service.py) never did.
             <dl className="report-viewer__idblock">
-              <dt>Patient Name :</dt>
-              <dd>{patient?.name || 'Unknown'}</dd>
               <dt>Patient ID :</dt>
               <dd>{patient?.mrn || '—'}</dd>
-              <dt>Age / Sex :</dt>
-              <dd>{ageSex}</dd>
-              <dt>Date of Study :</dt>
-              <dd>{formatDate(study.studyDate)}</dd>
+              <dt>Patient Name :</dt>
+              <dd>{patient?.name || 'Unknown'}</dd>
+              <dt>Age :</dt>
+              <dd>{formatPatientAge(patient)}</dd>
+              <dt>Sex :</dt>
+              <dd>{sexLabel}</dd>
               <dt>Referring Physician :</dt>
               <dd>{study.referringPhysician || '—'}</dd>
-              <dt>Accession No. :</dt>
-              <dd>{accession}</dd>
+              <dt>Modality :</dt>
+              <dd>{modalityLabel}</dd>
+              <dt>Study Date :</dt>
+              <dd>{formatDate(study.studyDate)}</dd>
+              <dt>Study :</dt>
+              <dd>{examTitle}</dd>
             </dl>
           )}
 

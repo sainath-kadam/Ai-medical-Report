@@ -37,6 +37,7 @@ reportlab==4.2.5
 # --- Non-image study files: DICOM/video -> plain images for the AI providers ---
 pydicom==2.4.4            # DICOM pixel data decoding (uncompressed transfer syntaxes)
 python-gdcm==3.2.6          # decodes compressed DICOM (JPEG lossless/baseline, JPEG-LS, JPEG 2000) common in MRI/CT exports; BSD-licensed
+pypdfium2==5.14.0           # renders PDF pages to images (PDF uploads containing scans); BSD-3/Apache-2.0
 numpy==1.26.4              # windowing/normalization for DICOM pixel arrays
 pillow==11.3.0              # PNG encoding of decoded DICOM frames (already pulled in transitively by google-genai/reportlab)
 opencv-python-headless==4.10.0.84   # video frame sampling (bundles its own ffmpeg codecs)

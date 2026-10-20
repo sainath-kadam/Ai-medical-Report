@@ -47,7 +47,7 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
   // No MRN field: the server assigns a per-organization medical record number
   // (`MRN-000123`) to every new patient — it shows on the report as "Patient ID".
   const [newName, setNewName] = useState('');
-  const [newDob, setNewDob] = useState('');
+  const [newAge, setNewAge] = useState('');
   const [newSex, setNewSex] = useState<Sex>('unspecified');
   const [newPhone, setNewPhone] = useState('');
   const [newEmail, setNewEmail] = useState('');
@@ -99,8 +99,8 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
       setError('Select a patient for this study.');
       return;
     }
-    if (patientMode === 'new' && (!newName.trim() || !newDob)) {
-      setError("The new patient's name and date of birth are required.");
+    if (patientMode === 'new' && (!newName.trim() || !newAge)) {
+      setError("The new patient's name and age are required.");
       return;
     }
     if (!bodyPart.trim()) {
@@ -108,7 +108,7 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
       return;
     }
     if (!file) {
-      setError('Attach the imaging file (image, DICOM, ZIP of slices, or video) for this study.');
+      setError('Attach the imaging file (image, DICOM, PDF, ZIP of slices, or video) for this study.');
       return;
     }
     if (file.size > MAX_STUDY_FILE_BYTES) {
@@ -131,7 +131,7 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
             patientMode === 'new'
               ? {
                 name: newName.trim(),
-                dateOfBirth: newDob,
+                age: Number(newAge),
                 sex: newSex,
                 contactPhone: newPhone.trim() || undefined,
                 contactEmail: newEmail.trim() || undefined,
@@ -200,10 +200,12 @@ export default function NewStudyForm({ initialPatientId, onComplete }: NewStudyF
                 <div className="study-intake-form__row">
                   <TextField label="Full name" value={newName} onChange={(e) => setNewName(e.target.value)} required disabled={isSubmitting} />
                   <TextField
-                    label="Date of birth"
-                    type="date"
-                    value={newDob}
-                    onChange={(e) => setNewDob(e.target.value)}
+                    label="Age (years)"
+                    type="number"
+                    min={0}
+                    max={150}
+                    value={newAge}
+                    onChange={(e) => setNewAge(e.target.value)}
                     required
                     disabled={isSubmitting}
                   />

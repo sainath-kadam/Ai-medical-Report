@@ -30,7 +30,7 @@ import hashlib
 
 import anyio
 import json
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,6 +56,7 @@ from app.services.audit_service import AuditService
 from app.services.notification_service import NotificationService
 from app.storage import get_storage
 from app.utils.ids import to_public
+from app.utils.patient_age import patient_age
 from app.utils.media_conversion import dicom_to_png_bytes, extract_video_frames
 from app.core.background import schedule
 from app.database.connection import get_session_factory
@@ -195,21 +196,6 @@ def _resolve_imaging_model(tier: str) -> str:
     return _TIER_MODEL_MAP[tier]
 
 
-def _calculate_age(date_of_birth: str | None) -> int | None:
-    """`patients.dateOfBirth` is stored as an ISO date string (CONTRACTS.md §4); the AI
-    context wants a plain integer age. Returns `None` rather than raising on a malformed or
-    missing value — age is a helpful hint for the model, not something worth failing an
-    entire analysis run over."""
-    if not date_of_birth:
-        return None
-    try:
-        dob = date.fromisoformat(str(date_of_birth)[:10])
-    except ValueError:
-        return None
-    today = date.today()
-    return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-
-
 class AnalysisService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -315,7 +301,7 @@ class AnalysisService:
             context = StudyContext(
                 modality=study["modality"],
                 body_part=study["bodyPart"],
-                patient_age=_calculate_age(patient.get("dateOfBirth")),
+                patient_age=patient_age(patient),
                 patient_sex=patient.get("sex"),
                 clinical_history=study.get("clinicalHistory"),
                 image_bytes=image_bytes,

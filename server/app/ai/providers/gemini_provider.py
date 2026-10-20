@@ -39,6 +39,7 @@ from app.ai.base import (
     StudyContext,
     TemplateSectionSpec,
 )
+from app.ai.prompts import REPORT_DETAIL_RULES, imaging_instructions
 from app.core.config import settings
 from app.core.exceptions import AppError
 from app.core.logging import get_logger
@@ -269,6 +270,11 @@ async def _generate_json_traced(
         raise AppError("The AI service returned a response in an unexpected format.", 502, "AI_MALFORMED_RESPONSE") from exc
 
 
+# A complete report (every finding, systematic findings, numbered impression) plus the model's
+# hidden thinking tokens, which count against this cap — the 4096 default could cut it off.
+_REPORT_MAX_TOKENS = 12288
+
+
 async def _generate_json(model: str, system_text: str, parts: list, schema: dict, max_tokens: int = 4096) -> dict:
     """`_generate_json_traced` for call sites that don't record which model served
     (classification, intake)."""
@@ -317,7 +323,8 @@ def _build_report_system(organization_name: str, sections: list[TemplateSectionS
         '"summary" is the concise (2-4 sentence) plain-language clinical summary of the findings — the '
         "at-a-glance version a physician reads before the full report; keep the impression and "
         "recommendations out of it (they are separate fields). "
-        "If clinical history is provided, explicitly reconcile the findings against it."
+        "If clinical history is provided, explicitly reconcile the findings against it.\n\n"
+        + REPORT_DETAIL_RULES
     )
 
 
@@ -343,11 +350,7 @@ class GeminiImagingProvider(BaseMedicalImagingProvider):
     async def analyze(self, context: StudyContext, high_accuracy_mode: bool) -> StructuredFindings:
         from google.genai import types
 
-        system = _safety_preamble("your organization") + (
-            " Examine the provided image and return discrete, neutral observations only — do not write a full "
-            "report or impression. If the source is not a directly viewable, interpretable image, set "
-            "analyzable=false and explain why instead of fabricating visual observations."
-        )
+        system = _safety_preamble("your organization") + imaging_instructions(context.modality, context.body_part)
         meta_lines = [l for l in _context_meta_lines(context) if l]
         parts = []
         images = context.all_images()
@@ -394,7 +397,7 @@ class GeminiReportProvider(BaseReportGenerationProvider):
         meta = "\n".join(l for l in _context_meta_lines(context) if l)
         user_text = f"{meta}\n\n{_findings_block(findings)}\n\nDraft the full report now, in the structured format described above."
         data, served_model = await _generate_json_traced(
-            settings.gemini_model, system, [types.Part.from_text(text=user_text)], _REPORT_SCHEMA
+            settings.gemini_model, system, [types.Part.from_text(text=user_text)], _REPORT_SCHEMA, max_tokens=_REPORT_MAX_TOKENS
         )
         return _parse_content(data, sections, served_model)
 
@@ -428,7 +431,7 @@ class GeminiReportProvider(BaseReportGenerationProvider):
             "Return a complete, updated report in the same structured format, applying the requested change."
         )
         data, served_model = await _generate_json_traced(
-            settings.gemini_model, system, [types.Part.from_text(text=user_text)], _REPORT_SCHEMA
+            settings.gemini_model, system, [types.Part.from_text(text=user_text)], _REPORT_SCHEMA, max_tokens=_REPORT_MAX_TOKENS
         )
         return _parse_content(data, sections, served_model)
 
