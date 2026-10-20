@@ -32,11 +32,12 @@ from typing import Any
 from xml.sax.saxutils import escape as _xml_escape
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER
+from reportlab.lib.enums import TA_CENTER, TA_RIGHT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
 from reportlab.lib.utils import ImageReader
+from reportlab.pdfbase.pdfmetrics import stringWidth
 from reportlab.platypus import HRFlowable, Image, Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
 from app.utils.patient_age import patient_age
@@ -118,11 +119,15 @@ def build_report_pdf(
         "SectionHeading", parent=body_style, fontName="Helvetica-Bold", spaceAfter=4, spaceBefore=6
     )
     meta_style = ParagraphStyle("Meta", parent=body_style)
-    header_meta_style = ParagraphStyle("HeaderMeta", parent=body_style)
+    header_center_style = ParagraphStyle("HeaderCenter", parent=body_style, alignment=TA_CENTER)
+    header_right_style = ParagraphStyle("HeaderRight", parent=body_style, alignment=TA_RIGHT)
     # Org name keeps its own text color (an org's explicit headerTextColor customization,
     # falling back to the one shared content color) -- every other element always uses
     # the shared content color, no separate customization point.
-    org_style = ParagraphStyle("Org", parent=body_style, fontName="Helvetica-Bold", fontSize=title_size, leading=title_size + 4, textColor=header_text_color)
+    org_style = ParagraphStyle(
+        "Org", parent=body_style, fontName="Helvetica-Bold", fontSize=font_size * 1.45, leading=font_size * 1.45 + 4,
+        textColor=header_text_color, alignment=TA_CENTER, spaceAfter=2,
+    )
     label_style = ParagraphStyle("MetaLabel", parent=body_style, fontName="Helvetica-Bold")
     value_style = ParagraphStyle("MetaValue", parent=body_style)
     department_style = ParagraphStyle(
@@ -136,25 +141,56 @@ def build_report_pdf(
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=20 * mm, bottomMargin=20 * mm, leftMargin=18 * mm, rightMargin=18 * mm)
     elements: list = []
+    # The frame insets its content 6pt on each side, so tables sized to `doc.width` stuck
+    # out past the text and rules; size them to the frame's real content width instead.
+    content_width = doc.width - 12
 
     # ------------------------------------------------------------------
     # Facility header
     # ------------------------------------------------------------------
     header = template.get("header", {})
-    org_name = _safe(header.get("organizationName")) or "Medical Imaging Report"
-    header_text_flowables: list = [Paragraph(org_name, org_style)]
-    if header.get("tagline"):
-        header_text_flowables.append(Paragraph(_safe(header["tagline"]), header_meta_style))
+    # Letterhead, three columns: the logo on the left; the organization name with the
+    # tagline and address under it, centered in the middle (a long name wraps, centered);
+    # the doctor's name, mobile and the hospital phone number(s) on the right.
+    right_lines: list = []
+    if header.get("doctorName"):
+        right_lines.append(Paragraph(f"<b>{_safe(header['doctorName'])}</b>", header_right_style))
+    if header.get("doctorPhone"):
+        right_lines.append(Paragraph(f"Mob: {_safe(header['doctorPhone'])}", header_right_style))
     if header.get("contactNumber"):
-        header_text_flowables.append(Paragraph(f"Tel: {_safe(header['contactNumber'])}", header_meta_style))
+        right_lines.append(Paragraph(f"Tel: {_safe(header['contactNumber'])}", header_right_style))
+    # The right column is as wide as its longest line, so the middle gets the rest.
+    right_texts = [
+        (header.get("doctorName") or "", "Helvetica-Bold"),
+        (f"Mob: {header.get('doctorPhone') or ''}", "Helvetica"),
+        (f"Tel: {header.get('contactNumber') or ''}", "Helvetica"),
+    ]
+    right_width = (
+        min(max(stringWidth(text, font, font_size) for text, font in right_texts) + 4 * mm, 70 * mm) if right_lines else 0
+    )
 
-    logo_flowable = _logo_flowable(logo_bytes) if logo_bytes else None
-    if logo_flowable:
-        header_table = Table([[logo_flowable, header_text_flowables]], colWidths=[50 * mm, doc.width - 50 * mm])
-        header_table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("LEFTPADDING", (0, 0), (-1, -1), 0)]))
-        elements.append(header_table)
-    else:
-        elements.extend(header_text_flowables)
+    logo_flowable = _logo_flowable(logo_bytes, max_width=24 * mm, max_height=20 * mm) if logo_bytes else None
+    logo_width = logo_flowable.drawWidth + 4 * mm if logo_flowable else 0
+
+    center_lines: list = [Paragraph(_safe(header.get("organizationName")) or "Medical Imaging Report", org_style)]
+    for key in ("tagline", "address"):
+        if header.get(key):
+            center_lines.append(Paragraph(_safe(header[key]), header_center_style))
+
+    row = [logo_flowable or "", center_lines, right_lines or ""]
+    header_table = Table([row], colWidths=[logo_width or 0.1, content_width - logo_width - right_width, right_width or 0.1])
+    header_table.setStyle(
+        TableStyle(
+            [
+                ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 0),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 0),
+                ("LEFTPADDING", (1, 0), (1, 0), 4),
+                ("RIGHTPADDING", (1, 0), (1, 0), 4),
+            ]
+        )
+    )
+    elements.append(header_table)
 
     elements.append(Spacer(1, 4))
     elements.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor("#101828")))
@@ -185,7 +221,7 @@ def build_report_pdf(
             _id_row("Referring Physician", study.get("referringPhysician") or "—", "Modality", modality_label),
             _id_row("Study Date", study.get("studyDate", "—"), "Study", study_label),
         ],
-        colWidths=[42 * mm, (doc.width - 84 * mm) / 2, 42 * mm, (doc.width - 84 * mm) / 2],
+        colWidths=[42 * mm, (content_width - 84 * mm) / 2, 42 * mm, (content_width - 84 * mm) / 2],
     )
     # A bordered box around plain "label : value" pairs -- matches a real hospital/RIS
     # report's patient-identification block. Label column is wide enough for "Referring
@@ -263,7 +299,7 @@ def build_report_pdf(
                 Paragraph("Signature", meta_style),
             ]
         if right_lines:
-            sig_table = Table([[left_lines, right_lines]], colWidths=[doc.width / 2, doc.width / 2])
+            sig_table = Table([[left_lines, right_lines]], colWidths=[content_width / 2, content_width / 2])
             sig_table.setStyle(TableStyle([("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 0)]))
             elements.append(sig_table)
         else:

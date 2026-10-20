@@ -7,7 +7,15 @@ import './TemplateForm.css';
 
 export interface TemplateFormValues {
   name: string;
-  header: { organizationName: string; logoKey: string | null; tagline: string; contactNumber: string };
+  header: {
+    organizationName: string;
+    logoKey: string | null;
+    tagline: string;
+    address: string;
+    doctorName: string;
+    doctorPhone: string;
+    contactNumber: string;
+  };
   doctorInfo: { showDoctorName: boolean; showSignatureLine: boolean; showRegistrationNo: boolean };
   sections: TemplateSection[];
   footer: { text: string; disclaimer: string };
@@ -28,7 +36,7 @@ interface TemplateFormProps {
 export function defaultValues(): TemplateFormValues {
   return {
     name: 'New Template',
-    header: { organizationName: '', logoKey: null, tagline: '', contactNumber: '' },
+    header: { organizationName: '', logoKey: null, tagline: '', address: '', doctorName: '', doctorPhone: '', contactNumber: '' },
     doctorInfo: { showDoctorName: true, showSignatureLine: true, showRegistrationNo: false },
     // Deliberately excludes "impression"/"recommendations" -- those are dedicated fields
     // on every report version, always rendered as their own block after these sections
@@ -65,6 +73,9 @@ function templateToFormValues(template: ReportTemplate): TemplateFormValues {
       organizationName: template.header.organizationName || '',
       logoKey: template.header.logoKey ?? null,
       tagline: template.header.tagline || '',
+      address: template.header.address || '',
+      doctorName: template.header.doctorName || '',
+      doctorPhone: template.header.doctorPhone || '',
       contactNumber: template.header.contactNumber || '',
     },
     doctorInfo: template.doctorInfo,
