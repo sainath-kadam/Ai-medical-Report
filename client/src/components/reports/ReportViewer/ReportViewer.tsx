@@ -203,13 +203,27 @@ export default function ReportViewer({ report, selectedVersion, onSelectVersion,
       </div>
 
       <div className="report-viewer__page-wrap">
+        <div className="report-viewer__backdrop" aria-hidden="true" />
         <article key={selectedVersion} className="report-viewer__page">
           <header className="report-viewer__header">
-            <div>
+            {/* Letterhead, same as the PDF: logo on the left; organization name with the
+                tagline and address under it, centered; doctor's name/mobile and hospital
+                phone on the right. */}
+            {template?.header.logoUrl && <img className="report-viewer__logo" src={template.header.logoUrl} alt="" />}
+            <div className="report-viewer__header-center">
               <p className="report-viewer__org">{template?.header.organizationName || 'Medical Imaging Report'}</p>
               {template?.header.tagline && <p className="report-viewer__tagline">{template.header.tagline}</p>}
-              {template?.header.contactNumber && <p className="report-viewer__tagline">Tel: {template.header.contactNumber}</p>}
+              {template?.header.address && <p className="report-viewer__tagline report-viewer__address">{template.header.address}</p>}
             </div>
+            {(template?.header.doctorName || template?.header.doctorPhone || template?.header.contactNumber) && (
+              <div className="report-viewer__header-contact">
+                {template?.header.doctorName && (
+                  <p className="report-viewer__tagline report-viewer__doctor">{template.header.doctorName}</p>
+                )}
+                {template?.header.doctorPhone && <p className="report-viewer__tagline">Mob: {template.header.doctorPhone}</p>}
+                {template?.header.contactNumber && <p className="report-viewer__tagline">Tel: {template.header.contactNumber}</p>}
+              </div>
+            )}
           </header>
 
           {report.versions.length > 1 && (

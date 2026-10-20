@@ -138,3 +138,30 @@ async def test_cross_tenant_logo_key_is_dropped_not_embedded(client, signup_and_
     )
     assert preview_response.status_code == 200
     assert preview_response.content[:4] == b"%PDF"
+
+
+async def test_letterhead_fields_are_saved_and_rendered(client, signup_and_login):
+    """Letterhead fields: a multi-line address under the centered name (logo beside it),
+    and the doctor's name/mobile plus the hospital phone number(s) on the right."""
+    await signup_and_login(email="admin-letterhead@example.com", organization_name="Letterhead Clinic")
+    logo = (await client.post("/templates/logo", files={"file": ("logo.png", _TINY_PNG, "image/png")})).json()["data"]
+    header = {
+        "organizationName": "RVM Hospital",
+        "tagline": "RVM Institute of Medical Sciences & Research Centre",
+        "address": "Laxmakkapally, Mulugu,\nSiddipet, T.S. 502279",
+        "doctorName": "Dr. K. Srinivas, MD Radiology",
+        "doctorPhone": "98765 43210",
+        "contactNumber": "08457-222333, 08457-222334",
+        "logoKey": logo["logoKey"],
+    }
+
+    created = await client.post("/templates", json=_template_payload(header=header))
+    assert created.status_code == 201, created.text
+    saved = created.json()["data"]["header"]
+    assert saved["address"] == header["address"]
+    assert saved["doctorName"] == header["doctorName"]
+    assert saved["doctorPhone"] == header["doctorPhone"]
+    assert saved["contactNumber"] == header["contactNumber"]
+
+    preview = await client.post("/templates/preview-pdf", json=_template_payload(header=header))
+    assert preview.status_code == 200 and preview.content[:4] == b"%PDF"

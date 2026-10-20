@@ -134,7 +134,12 @@
 /* -------------------------------------------------------------------- */
 .report-viewer__page-wrap {
   position: relative;
-  overflow: auto;
+  /* Sideways scrolling only, for zoom above 100%. Vertical scrolling always belongs to the
+     page itself: with `overflow: auto` here, the drifting orbs below poked out of this box
+     and made it a second, vertically scrollable area inside the page, so on phones a swipe
+     starting on the report scrolled (or stuck in) this box instead of the screen. */
+  overflow-x: auto;
+  overflow-y: hidden;
   background: var(--color-surface-alt);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -144,12 +149,20 @@
 
 /* Two soft, blurred color "orbs" drifting behind the page -- the ambient mesh-gradient
    backdrop familiar from modern product/landing pages (Linear, Stripe, Vercel). Purely
-   decorative canvas dressing behind the paper; the paper's own content is unaffected. */
-.report-viewer__page-wrap::before,
-.report-viewer__page-wrap::after {
+   decorative canvas dressing behind the paper; the paper's own content is unaffected.
+   They live in a clipped backdrop layer so they never add scrollable overflow. */
+.report-viewer__backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.report-viewer__backdrop::before,
+.report-viewer__backdrop::after {
   content: '';
   position: absolute;
-  z-index: -1;
   width: 480px;
   height: 480px;
   border-radius: 50%;
@@ -158,12 +171,12 @@
   pointer-events: none;
   animation: report-orb-drift 16s ease-in-out infinite alternate;
 }
-.report-viewer__page-wrap::before {
+.report-viewer__backdrop::before {
   top: -180px;
   left: -140px;
   background: var(--color-primary);
 }
-.report-viewer__page-wrap::after {
+.report-viewer__backdrop::after {
   bottom: -200px;
   right: -160px;
   background: var(--color-primary);
@@ -178,9 +191,16 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .report-viewer__page-wrap::before,
-  .report-viewer__page-wrap::after {
+  .report-viewer__backdrop::before,
+  .report-viewer__backdrop::after {
     animation: none;
+  }
+}
+/* Phones: no orbs -- a large animated blur repainting under the report made scrolling
+   stutter on mobile GPUs, for a purely decorative effect. */
+@media (max-width: 640px) {
+  .report-viewer__backdrop {
+    display: none;
   }
 }
 
@@ -221,9 +241,8 @@
 
 .report-viewer__header {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
+  align-items: center;
+  gap: var(--space-4);
   padding: var(--space-5) var(--space-5) var(--space-4);
   border-bottom: 1.5px solid var(--report-text-color, var(--color-text-primary));
 }
@@ -249,6 +268,35 @@
      accent) -- the only element in the document with its own color override. */
   color: var(--report-header-text-color, var(--report-text-color, var(--color-text-primary)));
 }
+.report-viewer__header-center {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+}
+.report-viewer__header-center .report-viewer__org {
+  font-size: calc(var(--report-font-size, 1rem) * 1.45);
+  line-height: 1.3;
+  margin-bottom: 2px;
+}
+.report-viewer__header-contact {
+  flex: none;
+  max-width: 35%;
+  text-align: right;
+}
+.report-viewer__logo {
+  flex: none;
+  max-width: 88px;
+  max-height: 64px;
+  object-fit: contain;
+}
+/* Keeps the line breaks typed into the template's address. */
+.report-viewer__address {
+  white-space: pre-line;
+}
+.report-viewer__doctor {
+  font-weight: 700;
+}
+
 .report-viewer__tagline {
   font-size: var(--report-font-size, 1rem);
   color: var(--report-text-color, var(--color-text-primary));
@@ -558,9 +606,13 @@
      forced both to wrap awkwardly (e.g. "AI" / "GENERATED" on separate lines) -- stack
      them instead so each gets the full width and wraps on its own terms, if at all. */
   .report-viewer__header {
+    /* Phones: logo, name block and doctor/phone block stacked, all centered. */
     flex-direction: column;
-    align-items: flex-start;
     gap: var(--space-2);
+  }
+  .report-viewer__header-contact {
+    max-width: none;
+    text-align: center;
   }
 }
 

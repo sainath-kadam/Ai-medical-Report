@@ -21,7 +21,13 @@ class TemplateHeaderSchema(CamelModel):
     # here, so a stale signed URL can never get written back into the row.
     logo_key: str | None = None
     tagline: str | None = None
-    contact_number: str | None = Field(default=None, max_length=40)
+    # Letterhead: `address` is centered under the organization name (may span several
+    # lines); the doctor's name and mobile and the hospital's phone number(s) sit on the
+    # right. All optional.
+    address: str | None = Field(default=None, max_length=300)
+    doctor_name: str | None = Field(default=None, max_length=200)
+    doctor_phone: str | None = Field(default=None, max_length=40)
+    contact_number: str | None = Field(default=None, max_length=100)
 
 
 class TemplateStyleSchema(CamelModel):

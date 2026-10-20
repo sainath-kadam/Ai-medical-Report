@@ -120,9 +120,29 @@ export default function TemplateFieldsEditor({ values, onChange, initialLogoUrl 
             onChange={(e) => onChange((p) => ({ ...p, header: { ...p.header, tagline: e.target.value } }))}
           />
         </div>
+        <TextArea
+          label="Address (optional, full line under the logo and name; Enter for a new line)"
+          value={values.header.address}
+          onChange={(e) => onChange((p) => ({ ...p, header: { ...p.header, address: e.target.value } }))}
+          rows={2}
+          maxLength={300}
+        />
         <div className="template-form__grid">
           <TextField
-            label="Contact number (optional)"
+            label="Doctor name (optional, top right)"
+            value={values.header.doctorName}
+            onChange={(e) => onChange((p) => ({ ...p, header: { ...p.header, doctorName: e.target.value } }))}
+          />
+          <TextField
+            label="Doctor mobile (optional, top right)"
+            value={values.header.doctorPhone}
+            onChange={(e) => onChange((p) => ({ ...p, header: { ...p.header, doctorPhone: e.target.value } }))}
+            maxLength={40}
+          />
+        </div>
+        <div className="template-form__grid">
+          <TextField
+            label="Hospital phone number(s) (optional, top right)"
             value={values.header.contactNumber}
             onChange={(e) => onChange((p) => ({ ...p, header: { ...p.header, contactNumber: e.target.value } }))}
           />

@@ -76,7 +76,16 @@ export interface ReportTemplate {
   isDefault: boolean;
   // `logoKey` is the storage key sent on create/update; `logoUrl` is a short-lived signed
   // URL computed fresh by the backend on every read -- never write it back on save.
-  header: { organizationName: string; logoKey?: string | null; logoUrl?: string; tagline?: string; contactNumber?: string };
+  header: {
+    organizationName: string;
+    logoKey?: string | null;
+    logoUrl?: string;
+    tagline?: string;
+    address?: string;
+    doctorName?: string;
+    doctorPhone?: string;
+    contactNumber?: string;
+  };
   doctorInfo: { showDoctorName: boolean; showSignatureLine: boolean; showRegistrationNo: boolean };
   sections: TemplateSection[];
   footer: { text: string; disclaimer: string };
