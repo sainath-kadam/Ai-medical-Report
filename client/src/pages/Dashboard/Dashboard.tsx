@@ -346,11 +346,15 @@ export default function Dashboard() {
             ) : (
               <Loader size="sm" label={analysisJob ? ANALYSIS_JOB_STATUS_META[analysisJob.status].label : 'Starting…'} />
             )}
-            <div className="dashboard-page__failure-actions">
-              <Button variant="outline" onClick={() => navigate(`/studies/${analyzingStudy.id}`)}>
-                Open study
-              </Button>
-            </div>
+            {/* While the steps are progressing the report opens here by itself, so there's
+                nothing to open yet -- the button only appears if polling lost the job. */}
+            {analysisPollError && (
+              <div className="dashboard-page__failure-actions">
+                <Button variant="outline" onClick={() => navigate(`/studies/${analyzingStudy.id}`)}>
+                  Open study
+                </Button>
+              </div>
+            )}
           </div>
         </Card>
       </div>

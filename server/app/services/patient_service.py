@@ -91,7 +91,8 @@ class PatientService:
                 "organizationId": current_user.organization_id,
                 "mrn": mrn,
                 "name": payload.name,
-                "dateOfBirth": payload.date_of_birth.isoformat(),
+                "age": payload.age,
+                "dateOfBirth": payload.date_of_birth.isoformat() if payload.date_of_birth else "",
                 "sex": payload.sex,
                 "contactPhone": payload.contact_phone,
                 "contactEmail": payload.contact_email,
@@ -141,6 +142,8 @@ class PatientService:
             update["mrn"] = payload.mrn
         if payload.name is not None:
             update["name"] = payload.name
+        if payload.age is not None:
+            update["age"] = payload.age
         if payload.date_of_birth is not None:
             update["dateOfBirth"] = payload.date_of_birth.isoformat()
         if payload.sex is not None:

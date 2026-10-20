@@ -17,8 +17,8 @@
   flex-direction: column;
   gap: var(--space-4);
   position: sticky;
-  /* Relative to the scrolling content area, which already starts below the Topbar. */
-  top: var(--space-4);
+  /* 16px below the Topbar (offsets count from the content area's padding edge). */
+  top: calc(var(--space-4) - var(--content-pad-top, 0px));
 }
 
 .report-workspace__card-title {

@@ -66,3 +66,11 @@ list.
   never stored (`processingStatus: "slices_only"`, no signedUrl). Compressed DICOM decodes
   via `python-gdcm`. Errors: ZIP_INVALID / ZIP_NO_IMAGES / ZIP_ENCRYPTED / ZIP_TOO_LARGE /
   ZIP_UNREADABLE.
+- **PDFs containing scan images take the same path as ZIPs** (`archive_service.store_archive(
+  kind="pdf")`, recognised by `application/pdf` or a `.pdf` name): every page is rendered to
+  a JPEG by `app/utils/pdf_pages.read_pdf` (pypdfium2; longest side capped at 2000px), up
+  to MAX_ANALYSIS_IMAGES pages spread evenly through a longer PDF, stored in `frameKeys`
+  with `extraction.source = "pdf"` and "Page N of M" labels. The PDF itself is never stored
+  (`processingStatus: "slices_only"`). Errors: PDF_INVALID / PDF_ENCRYPTED / PDF_NO_PAGES /
+  PDF_TOO_LARGE (>500 pages) / PDF_UNREADABLE.
+

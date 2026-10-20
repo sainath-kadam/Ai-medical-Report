@@ -109,7 +109,11 @@ class Patient(Base):
     organization_id: Mapped[str] = mapped_column(ForeignKey("organizations.id"), index=True)
     mrn: Mapped[str] = mapped_column(String(64))
     name: Mapped[str] = mapped_column(String(200), index=True)
-    date_of_birth: Mapped[str] = mapped_column(String(40))
+    # Age in years as entered when the patient was added — what the UI, report and AI use.
+    # Older patients were created with a date of birth instead (age is then derived from
+    # it); patients created with only an age store "" here.
+    date_of_birth: Mapped[str] = mapped_column(String(40), default="")
+    age: Mapped[int | None] = mapped_column(Integer)
     sex: Mapped[str] = mapped_column(String(20))
     contact_phone: Mapped[str | None] = mapped_column(String(40))
     contact_email: Mapped[str | None] = mapped_column(String(255))

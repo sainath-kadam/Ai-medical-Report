@@ -116,15 +116,19 @@ export default function ReportWorkspace({
         {runAnalysis && (
           <Card>
             <h3 className="report-workspace__card-title">AI analysis</h3>
-            <Button
-              icon={<FiCpu size={16} />}
-              onClick={runAnalysis.onRun}
-              isLoading={runAnalysis.isRunning && !runAnalysis.job}
-              disabled={runAnalysis.disabled}
-              fullWidth
-            >
-              {runAnalysis.label}
-            </Button>
+            {/* Hidden while an analysis is in progress -- only the steps show until it
+                finishes (or fails). */}
+            {!(runAnalysis.job && !runAnalysis.jobIsTerminal) && (
+              <Button
+                icon={<FiCpu size={16} />}
+                onClick={runAnalysis.onRun}
+                isLoading={runAnalysis.isRunning && !runAnalysis.job}
+                disabled={runAnalysis.disabled}
+                fullWidth
+              >
+                {runAnalysis.label}
+              </Button>
+            )}
 
             {runAnalysis.job && !runAnalysis.jobIsTerminal && (
               <div className="report-workspace__job">

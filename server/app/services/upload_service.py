@@ -29,6 +29,10 @@ def is_zip_upload(content_type: str, filename: str | None) -> bool:
     return content_type in _ZIP_MIME_TYPES or (filename or "").lower().endswith(".zip")
 
 
+def is_pdf_upload(content_type: str, filename: str | None) -> bool:
+    return content_type == "application/pdf" or (filename or "").lower().endswith(".pdf")
+
+
 class UploadService:
     def __init__(self, db: AsyncSession) -> None:
         self.db = db
@@ -53,9 +57,11 @@ class UploadService:
         record, since callers want both (an audit-log entry needs the file record; the
         response needs the whole study)."""
         content_type = file.content_type or "application/octet-stream"
-        if is_zip_upload(content_type, file.filename):
-            # An MRI/CT export: slices picked per series, the ZIP itself isn't kept — see
-            # archive_service.py.
+        archive_kind = "zip" if is_zip_upload(content_type, file.filename) else "pdf" if is_pdf_upload(content_type, file.filename) else None
+        if archive_kind:
+            # A ZIP (MRI/CT export: slices picked per series) or a PDF of scan images (pages
+            # rendered to images). Only the picked images are kept, not the file itself —
+            # see archive_service.py.
             from app.services.archive_service import store_archive
 
             updated_study, file_record, self.preloaded = await store_archive(
@@ -64,6 +70,7 @@ class UploadService:
                 organization_id=organization_id,
                 uploaded_by=uploaded_by,
                 db=self.db,
+                kind=archive_kind,
             )
             if not updated_study:
                 raise AppError.not_found("Study not found", "STUDY_NOT_FOUND")
@@ -71,7 +78,7 @@ class UploadService:
 
         if not any(content_type.startswith(prefix) for prefix in _ALLOWED_MIME_PREFIXES):
             raise AppError.bad_request(
-                f"Unsupported file type: {content_type}. Upload an image, video, DICOM, or a ZIP of scan images.",
+                f"Unsupported file type: {content_type}. Upload an image, video, DICOM, a ZIP of scan images, or a PDF.",
                 "UNSUPPORTED_FILE_TYPE",
             )
 

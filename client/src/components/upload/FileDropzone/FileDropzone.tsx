@@ -9,7 +9,7 @@ interface FileDropzoneProps {
   disabled?: boolean;
 }
 
-export default function FileDropzone({ file, onSelect, accept = 'image/*,.dcm,video/*,.zip,application/zip', disabled = false }: FileDropzoneProps) {
+export default function FileDropzone({ file, onSelect, accept = 'image/*,.dcm,video/*,.zip,application/zip,.pdf,application/pdf', disabled = false }: FileDropzoneProps) {
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -60,7 +60,7 @@ export default function FileDropzone({ file, onSelect, accept = 'image/*,.dcm,vi
         <>
           <FiUploadCloud size={36} className="dropzone__icon" />
           <p className="dropzone__title">Drag & drop a scan here, or click to browse</p>
-          <p className="dropzone__hint">JPEG, PNG, DICOM, a ZIP of MRI/CT slices, or video (max 2 min) · up to 1GB</p>
+          <p className="dropzone__hint">JPEG, PNG, DICOM, PDF, a ZIP of MRI/CT slices, or video (max 2 min) · up to 1GB</p>
         </>
       )}
 

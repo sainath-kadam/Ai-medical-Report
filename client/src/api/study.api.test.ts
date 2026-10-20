@@ -8,7 +8,7 @@ import { MAX_STUDY_FILE_BYTES, studyApi } from './study.api';
 type UploadConfig = { timeout: number; onUploadProgress?: (event: { loaded: number; total?: number }) => void };
 
 const intakePayload = {
-  newPatient: { name: 'Mri Video', dateOfBirth: '1975-03-03', sex: 'female' as const },
+  newPatient: { name: 'Mri Video', age: 51, sex: 'female' as const },
   modality: 'mri' as const,
   bodyPart: 'Brain',
   studyDate: '2026-09-01',

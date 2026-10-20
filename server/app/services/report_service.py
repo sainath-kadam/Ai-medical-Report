@@ -59,27 +59,12 @@ from app.services.audit_service import AuditService
 from app.services.study_service import with_signed_urls
 from app.storage import get_storage
 from app.utils.ids import to_public
+from app.utils.patient_age import patient_age
 from app.utils.response import paginated
 
 logger = get_logger(__name__)
 
 _IMMUTABLE_STATUS = "finalized"
-
-
-def _calculate_age(date_of_birth: str | None) -> int | None:
-    """Same logic as `AnalysisService`'s helper — duplicated rather than imported across
-    domains, since it's a two-line pure function and CONTRACTS.md doesn't define a shared
-    `utils` home for it."""
-    if not date_of_birth:
-        return None
-    from datetime import date
-
-    try:
-        dob = date.fromisoformat(str(date_of_birth)[:10])
-    except ValueError:
-        return None
-    today = date.today()
-    return today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
 
 
 class ReportService:
@@ -624,7 +609,7 @@ class ReportService:
         return StudyContext(
             modality=study["modality"],
             body_part=study["bodyPart"],
-            patient_age=_calculate_age(patient.get("dateOfBirth")),
+            patient_age=patient_age(patient),
             patient_sex=patient.get("sex"),
             clinical_history=study.get("clinicalHistory"),
             image_bytes=image_bytes,

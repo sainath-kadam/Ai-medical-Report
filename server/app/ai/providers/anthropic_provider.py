@@ -44,6 +44,7 @@ from app.ai.base import (
     TemplateSectionSpec,
     resolve_generation_tier,
 )
+from app.ai.prompts import REPORT_DETAIL_RULES, imaging_instructions
 from app.core.config import settings
 from app.core.exceptions import AppError
 from app.core.logging import get_logger
@@ -68,7 +69,7 @@ _FINDINGS_JSON_SCHEMA = {
         "observations": {
             "type": "array",
             "items": {"type": "string"},
-            "description": "Discrete, neutral radiological observations, one per array entry. Empty if the image could not be meaningfully analyzed.",
+            "description": "Every finding as its own entry, each starting with one tag — [Major], [Minor], [Incidental], [Normal] (pertinent normal) or [Technique] (quality/coverage limit) — then location, side, approximate size, severity and confidence. Empty if the image could not be meaningfully analyzed.",
         },
         "rawSummary": {"type": "string", "description": "1-2 sentence plain-language summary of what was observed."},
         "analyzable": {"type": "boolean", "description": "False if the source was not a directly viewable/interpretable image."},
@@ -203,12 +204,7 @@ def _image_content_blocks(context: StudyContext) -> list[dict]:
 class AnthropicImagingProvider(BaseMedicalImagingProvider):
     async def analyze(self, context: StudyContext, high_accuracy_mode: bool) -> StructuredFindings:
         tier = resolve_generation_tier(high_accuracy_mode)
-        system = _safety_preamble("your organization") + (
-            " Examine the provided image and return discrete, neutral observations only — do not write a full "
-            "report or impression, that happens in a separate step. If the source is not a directly viewable, "
-            "interpretable image (e.g. raw DICOM or video not yet extracted to a frame), set analyzable=false "
-            "and explain why instead of fabricating visual observations."
-        )
+        system = _safety_preamble("your organization") + imaging_instructions(context.modality, context.body_part)
         image_blocks = _image_content_blocks(context)
         meta_lines = [l for l in _context_meta_lines(context) if l]
         if not image_blocks:
@@ -223,7 +219,9 @@ class AnthropicImagingProvider(BaseMedicalImagingProvider):
             )
         content: list[dict] = [*image_blocks, {"type": "text", "text": "\n".join(meta_lines)}]
 
-        data = await _call(tier, system, content, _FINDINGS_JSON_SCHEMA, max_tokens=1024)
+        # 1024 was sized for a handful of observations; a systematic read with every small
+        # finding and the pertinent normals needs far more.
+        data = await _call(tier, system, content, _FINDINGS_JSON_SCHEMA, max_tokens=4096)
         return StructuredFindings(
             observations=data.get("observations", []),
             raw_summary=data.get("rawSummary", ""),
@@ -247,7 +245,8 @@ def _build_report_system(organization_name: str, sections: list[TemplateSectionS
         "recommendations out of it (they are separate fields). "
         "If clinical history is provided, explicitly reconcile the findings against it. If the "
         "findings indicate the image could not be analyzed, say so plainly in the findings section instead of "
-        "fabricating observations."
+        "fabricating observations.\n\n"
+        + REPORT_DETAIL_RULES
     )
 
 
@@ -272,7 +271,7 @@ class AnthropicReportProvider(BaseReportGenerationProvider):
         system = _build_report_system(organization_name, sections)
         meta = "\n".join(l for l in _context_meta_lines(context) if l)
         user_text = f"{meta}\n\n{_findings_block(findings)}\n\nDraft the full report now, in the structured format described above."
-        data = await _call(tier, system, [{"type": "text", "text": user_text}], _REPORT_JSON_SCHEMA)
+        data = await _call(tier, system, [{"type": "text", "text": user_text}], _REPORT_JSON_SCHEMA, max_tokens=8192)
         return self._parse_content(data, _MODEL_FOR_TIER[tier], sections)
 
     async def revise(
@@ -306,7 +305,7 @@ class AnthropicReportProvider(BaseReportGenerationProvider):
             "Return a complete, updated report in the same structured format, applying the requested change. "
             "Keep everything else consistent with the previous draft unless the requested change implies otherwise."
         )
-        data = await _call(tier, system, [{"type": "text", "text": user_text}], _REPORT_JSON_SCHEMA)
+        data = await _call(tier, system, [{"type": "text", "text": user_text}], _REPORT_JSON_SCHEMA, max_tokens=8192)
         return self._parse_content(data, _MODEL_FOR_TIER[tier], sections)
 
     async def classify_change_request(self, instruction: str) -> ChangeRequestClassification:

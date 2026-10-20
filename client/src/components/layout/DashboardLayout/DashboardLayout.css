@@ -27,7 +27,10 @@
   /* Reserve the scrollbar's width inside the content area only (below the header), so
      centered page content doesn't shift when a page becomes long enough to scroll. */
   scrollbar-gutter: stable;
-  padding: var(--space-6) var(--space-5) var(--space-7);
+  /* Sticky children pin at the scroll container's padding edge, not its top edge, so
+     anything meant to sit flush under the Topbar uses top: calc(-1 * this). */
+  --content-pad-top: var(--space-6);
+  padding: var(--content-pad-top) var(--space-5) var(--space-7);
 }
 /* Focused programmatically for keyboard scrolling (see DashboardLayout.tsx) -- not a
    control, so no focus ring. */
@@ -63,6 +66,7 @@
 
 @media (max-width: 640px) {
   .dashboard-layout__content {
-    padding: var(--space-4) var(--space-3) var(--space-6);
+    --content-pad-top: var(--space-4);
+    padding: var(--content-pad-top) var(--space-3) var(--space-6);
   }
 }
